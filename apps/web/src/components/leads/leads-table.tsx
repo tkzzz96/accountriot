@@ -22,6 +22,14 @@ function PriorityBadge({ priority }: { priority: Lead["priority"] }) {
   return <Badge variant="secondary">Low</Badge>;
 }
 
+const SITE_TEXT: Record<string, string> = {
+  NONE: "Sem site", SOCIAL_ONLY: "Só rede social", FREE_BUILDER: "Site gratuito", DEAD: "Site fora do ar", HAS_SITE: "Tem site", UNKNOWN: "Não confirmado",
+};
+function SiteBadge({ status }: { status: NonNullable<Lead["siteStatus"]> }) {
+  const variant = status === "HAS_SITE" ? "info" : status === "UNKNOWN" ? "secondary" : "success";
+  return <Badge variant={variant}>{SITE_TEXT[status]}</Badge>;
+}
+
 function CrmBadge({ status }: { status: Lead["crmStatus"] }) {
   const map: Record<Lead["crmStatus"], "secondary" | "info" | "warning" | "success" | "destructive"> = {
     new: "secondary",
@@ -84,6 +92,8 @@ export function LeadsTable({ leads, loading }: Props) {
             <div className="flex items-center gap-2 mb-0.5 flex-wrap">
               <span className="font-medium text-sm truncate">{lead.name}</span>
               <PriorityBadge priority={lead.priority} />
+              {lead.siteStatus && <SiteBadge status={lead.siteStatus} />}
+              {lead.pipelineStage && lead.pipelineStage !== "READY" && <Badge variant={lead.pipelineStage === "FAILED" ? "destructive" : "secondary"}>{lead.pipelineStage}</Badge>}
               <CrmBadge status={lead.crmStatus} />
             </div>
             <div className="flex items-center gap-3 text-xs text-muted-foreground flex-wrap">

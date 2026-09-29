@@ -78,7 +78,8 @@ jobs:
       REDIS_URL: redis://localhost:6380
       JWT_SECRET: ci-test-secret-do-not-use-in-prod
       ENCRYPTION_KEY: MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY=
-      OPENAI_API_KEY: ""          # intentionally empty — AI falls back to mock
+      OPENAI_API_KEY: ""          # intentionally empty — drafts use the deterministic template generator
+      DISCOVERY_DRIVER: mock      # deterministic offline lead source for E2E
       NEXT_PUBLIC_API_URL: http://localhost:3001/api
       THROTTLE_LIMIT: "1000"     # the E2E suite's rapid requests from a single IP would otherwise hit the production rate limit
       AUTH_THROTTLE_LIMIT: "1000" # auth routes have their own stricter brute-force limit — same reasoning
@@ -111,6 +112,9 @@ jobs:
 
       - name: Install Playwright Chromium
         run: npx playwright install chromium --with-deps
+
+      - name: Unit tests
+        run: pnpm --filter @prospex/api test
 
       - name: Build API
         run: pnpm --filter @prospex/api build

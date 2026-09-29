@@ -13,6 +13,8 @@ export default defineConfig({
     screenshot: "only-on-failure",
     video: "retain-on-failure",
     trace: "retain-on-failure",
+    // Set PW_CHROMIUM_PATH when the installed Chromium build differs from the Playwright version.
+    ...(process.env.PW_CHROMIUM_PATH ? { launchOptions: { executablePath: process.env.PW_CHROMIUM_PATH } } : {}),
   },
 
   projects: [

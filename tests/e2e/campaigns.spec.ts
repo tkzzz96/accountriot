@@ -2,55 +2,51 @@ import { test, expect } from "./fixtures";
 
 const CAMPAIGN = {
   name: `E2E Campaign ${Date.now()}`,
-  location: "Jakarta",
-  query: "Restaurant Jakarta Selatan",
-  service: "Sistem manajemen restoran berbasis AI",
+  niche: "barbearia",
+  city: "Curitiba",
+  country: "Brasil",
 };
 
+// Requires the API to run with DISCOVERY_DRIVER=mock (deterministic offline data).
 test.describe("Campaigns", () => {
   test("campaigns list page loads", async ({ authedPage: page }) => {
     await page.goto("/campaigns");
     await expect(page.getByRole("heading", { name: /campaigns/i })).toBeVisible();
   });
 
-  test("create campaign form renders all required fields", async ({ authedPage: page }) => {
+  test("create campaign form renders the prospector filter", async ({ authedPage: page }) => {
     await page.goto("/campaigns/new");
     await expect(page.locator("#name")).toBeVisible();
-    await expect(page.getByText("Location", { exact: true })).toBeVisible();
-    await expect(page.getByText("Industry", { exact: true })).toBeVisible();
-    await expect(page.getByText("Search Queries", { exact: true })).toBeVisible();
+    await expect(page.getByText("Nicho", { exact: true })).toBeVisible();
+    await expect(page.getByText("Cidade", { exact: true })).toBeVisible();
+    await expect(page.getByText("Somente empresas sem site")).toBeVisible();
   });
 
-  test("create campaign → starts scraper → completes with leads", async ({ authedPage: page }) => {
+  test("create campaign -> leads reach READY -> card shows evidence, draft and 3 references", async ({ authedPage: page }) => {
     await page.goto("/campaigns/new");
-
-    // Fill form
     await page.fill("#name", CAMPAIGN.name);
-    await page.fill('input[placeholder*="Jakarta"], input[placeholder*="location"], #location', CAMPAIGN.location);
-
-    // Select industry (first available option)
-    await page.locator('[id="industry"], button:has-text("Select industry")').first().click();
-    await page.locator('[role="option"]').first().click();
-
-    // Search query — scoped test id, since the header's global search box
-    // also has a placeholder containing "Search" and would otherwise match.
-    await page.getByTestId("query-input").first().fill(CAMPAIGN.query);
-
-    // Your service
-    const serviceField = page.locator('textarea, input[placeholder*="service"]').first();
-    if (await serviceField.isVisible()) await serviceField.fill(CAMPAIGN.service);
-
-    // Submit
+    await page.getByTestId("niche-input").fill(CAMPAIGN.niche);
+    await page.getByTestId("city-input").fill(CAMPAIGN.city);
+    await page.fill("#country", CAMPAIGN.country);
     await page.click('button[type="submit"]');
 
-    // Should redirect to campaign detail page. Excludes "/campaigns/new"
-    // itself, which the bare `[a-z0-9-]+` pattern would otherwise match if
-    // the form failed to submit and the page never actually navigated.
     await page.waitForURL(/\/campaigns\/(?!new$)[a-z0-9-]+$/, { timeout: 15000 });
     await expect(page.getByText(CAMPAIGN.name)).toBeVisible();
+    await expect(page.getByText("Completed")).toBeVisible({ timeout: 90000 });
 
-    // Wait for campaign to complete (scraper uses mock fallback — should finish in < 30s)
-    await expect(page.getByText("Completed")).toBeVisible({ timeout: 45000 });
+    // Open the first lead of the campaign
+    await page.locator("a[href^='/leads/']").first().click();
+    await page.waitForURL(/\/leads\/[a-z0-9]+$/);
+
+    const card = page.getByTestId("prospector-card");
+    await expect(card).toBeVisible({ timeout: 15000 });
+    await expect(page.getByTestId("site-status")).toBeVisible();
+    await expect(card.getByText("Por que classificamos assim")).toBeVisible();
+    await expect(page.getByTestId("draft-text")).not.toBeEmpty();
+    await expect(card.getByText("rascunho · nada é enviado")).toBeVisible();
+    await expect(page.getByTestId("budget-label")).toHaveText(/provável|incerto|improvável/);
+    await expect(page.getByTestId("references").locator("a")).toHaveCount(3);
+    await expect(card.getByRole("link", { name: /Abrir no WhatsApp/ })).toHaveAttribute("href", /^https:\/\/wa\.me\/\d+\?text=/);
   });
 
   test("completed campaign shows leads", async ({ authedPage: page }) => {

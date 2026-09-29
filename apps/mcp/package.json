@@ -1,0 +1,25 @@
+{
+  "name": "@prospex/mcp",
+  "version": "0.1.0",
+  "private": true,
+  "description": "MCP server exposing the Prospector (create_campaign, list_leads, get_lead, regenerate_draft). Idea from leadforge mcp_server.py (MIT).",
+  "main": "dist/index.js",
+  "bin": {
+    "prospector-mcp": "dist/index.js"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "dev": "tsc -p tsconfig.json --watch",
+    "lint": "tsc -p tsconfig.json --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.31.0",
+    "zod": "^4.6.5"
+  },
+  "devDependencies": {
+    "@types/node": "^22.9.0",
+    "typescript": "^5.6.3",
+    "vitest": "^2"
+  }
+}

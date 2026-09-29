@@ -1,3 +1,5 @@
+> **Prospector de leads para sites** — guia de uso em [docs/PROSPECTOR.md](docs/PROSPECTOR.md).
+
 
 <div align="center">
   <h1>Prospex</h1>
@@ -72,6 +74,8 @@ Edit `apps/api/.env` with your values:
 DATABASE_URL="postgresql://prospex:yourpassword@localhost:5432/prospex"
 OPENAI_API_KEY=sk-your-key-here   # or leave empty for mock AI
 OPENAI_MODEL=gpt-4o-mini
+> **Prospector de leads para sites** — guia em [docs/PROSPECTOR.md](docs/PROSPECTOR.md).
+
 # Optional: use OpenRouter or Ollama
 # OPENAI_BASE_URL=https://openrouter.ai/api/v1
 ```

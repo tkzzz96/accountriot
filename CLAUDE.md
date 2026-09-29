@@ -33,6 +33,8 @@ Dono do projeto: Ryan (estrategista web/PM, fala português). Responda ao Ryan e
 - Env: copiar `.env.example` para `apps/api/.env` e `packages/database/.env` (JWT_SECRET, ENCRYPTION_KEY obrigatórios).
 - Sem Docker (ambiente cloud): Postgres 16 e Redis nativos (`service postgresql start`, `redis-server --daemonize yes`).
 - gosom: `docker compose -f infra/docker-compose.gosom.yml up -d` (REST em :8080). Binário local: `go build` em `vendor-ref/google-maps-scraper`.
+- MCP: `pnpm --filter @prospex/mcp build` (apps/mcp). Guia de uso: `docs/PROSPECTOR.md`.
+- E2E local: `PW_CHROMIUM_PATH=<chrome> THROTTLE_LIMIT=5000 AUTH_THROTTLE_LIMIT=5000 scripts/restart-api.sh` + `next start` + `pnpm test:e2e`.
 - Health: `curl localhost:3001/api/health`. Base importada do Prospex; CLAUDE.md original em `docs/PROSPEX_CLAUDE.md`.
 
 ## Convenções

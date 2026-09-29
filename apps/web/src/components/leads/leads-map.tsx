@@ -37,6 +37,7 @@ function markerIcon(priority: Lead["priority"]) {
 
 function FitBounds({ points }: { points: [number, number][] }) {
   const map = useMap();
+  const pointsKey = points.map((p) => p.join(",")).join("|");
   useMemo(() => {
     if (points.length === 0) return;
     if (points.length === 1) {
@@ -45,7 +46,7 @@ function FitBounds({ points }: { points: [number, number][] }) {
     }
     map.fitBounds(L.latLngBounds(points), { padding: [40, 40] });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [points.map((p) => p.join(",")).join("|")]);
+  }, [pointsKey]);
   return null;
 }
 

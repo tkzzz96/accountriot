@@ -26,8 +26,10 @@ Dono do projeto: Ryan (estrategista web/PM, fala português). Responda ao Ryan e
 - `pnpm install` · `pnpm build` · `pnpm dev` (turbo: api 3001, web 3000, marketing 3002)
 - Banco: `pnpm --filter @prospex/database db:push` (dev) · `db:migrate` · `db:deploy` · `exec prisma generate`
 - Typecheck: `pnpm --filter @prospex/api exec tsc --noEmit` e `pnpm --filter @prospex/web exec tsc --noEmit`
-- Testes: NÃO existe `pnpm test`. Só e2e Playwright: `pnpm test:e2e` (com api+web rodando). Unit runner (Vitest) será criado na Fase 1.
-- Lint: `pnpm lint` está QUEBRADO na base (`next lint` inexistente no Next instalado; eslint da api falha por config). Corrigir no início da Fase 1.
+- Testes unitários: `pnpm test` (Vitest em apps/api, `src/**/*.spec.ts`). E2E Playwright: `pnpm test:e2e` (com api+web rodando).
+- Smoke ponta a ponta: `DISCOVERY_DRIVER=mock node apps/api/dist/main` + `scripts/smoke.sh 100`.
+- Lint: `pnpm lint` (eslint flat config em cada app; regras React-Compiler como warning).
+- Descoberta: `DISCOVERY_DRIVER=gosom|places|playwright|mock` (ver .env.example).
 - Env: copiar `.env.example` para `apps/api/.env` e `packages/database/.env` (JWT_SECRET, ENCRYPTION_KEY obrigatórios).
 - Sem Docker (ambiente cloud): Postgres 16 e Redis nativos (`service postgresql start`, `redis-server --daemonize yes`).
 - gosom: `docker compose -f infra/docker-compose.gosom.yml up -d` (REST em :8080). Binário local: `go build` em `vendor-ref/google-maps-scraper`.

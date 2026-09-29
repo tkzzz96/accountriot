@@ -8,190 +8,187 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Badge } from "@/components/ui/badge";
-import { Loader2, Plus, X } from "lucide-react";
+import { Loader2 } from "lucide-react";
 import { motion } from "framer-motion";
-
-const INDUSTRIES = [
-  { value: "restaurant", label: "Restaurant & F&B" },
-  { value: "cafe", label: "Cafe & Coffee" },
-  { value: "retail", label: "Retail & Fashion" },
-  { value: "automotive", label: "Automotive" },
-  { value: "healthcare", label: "Healthcare & Clinic" },
-  { value: "beauty", label: "Beauty & Wellness" },
-  { value: "education", label: "Education & Course" },
-  { value: "realestate", label: "Real Estate" },
-  { value: "event", label: "Event & Wedding" },
-  { value: "tech", label: "Technology" },
-  { value: "professional", label: "Professional Services" },
-];
 
 export function CreateCampaignForm() {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
-  const [queries, setQueries] = useState<string[]>([""]);
+  const [error, setError] = useState<string | null>(null);
   const [form, setForm] = useState({
     name: "",
-    industry: "",
-    location: "",
-    yourService: "",
-    maxResults: "20",
-    contentStyle: "balanced",
-    language: "indonesian",
+    niche: "",
+    country: "Brasil",
+    city: "",
+    radiusKm: "10",
+    sizeHint: "micro",
+    budgetUsd: "500",
+    language: "pt-BR",
+    channel: "whatsapp",
+    requireNoSite: true,
+    maxResults: "50",
+    service: "Criação de site profissional",
+    priceAnchor: "",
+    deadline: "",
+    sellerName: "",
   });
 
   const set = (k: keyof typeof form) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) =>
     setForm((p) => ({ ...p, [k]: e.target.value }));
-
-  const addQuery = () => setQueries((q) => [...q, ""]);
-  const removeQuery = (i: number) => setQueries((q) => q.filter((_, idx) => idx !== i));
-  const updateQuery = (i: number, v: string) =>
-    setQueries((q) => q.map((old, idx) => (idx === i ? v : old)));
+  const select = (k: keyof typeof form) => (v: string) => setForm((p) => ({ ...p, [k]: v }));
 
   const handleSubmit = async (e: React.SyntheticEvent<HTMLFormElement>) => {
     e.preventDefault();
     setLoading(true);
+    setError(null);
     try {
       const campaign = await api.post<{ id: string }>("/campaigns", {
         name: form.name,
-        industry: form.industry,
-        location: form.location,
-        searchQueries: queries.filter(Boolean),
-        yourService: form.yourService,
-        maxResults: Number(form.maxResults),
-        contentStyle: form.contentStyle,
-        language: form.language,
+        filter: {
+          niche: form.niche,
+          country: form.country,
+          city: form.city,
+          radiusKm: Number(form.radiusKm),
+          sizeHint: form.sizeHint,
+          budgetUsd: Number(form.budgetUsd),
+          language: form.language,
+          channel: form.channel,
+          requireNoSite: form.requireNoSite,
+          maxResults: Number(form.maxResults),
+          service: form.service || undefined,
+          priceAnchor: form.priceAnchor || undefined,
+          deadline: form.deadline || undefined,
+          sellerName: form.sellerName || undefined,
+        },
       });
       await api.post(`/scraper/campaigns/${campaign.id}/start`, {});
       router.push(`/campaigns/${campaign.id}`);
     } catch (err) {
       console.error("Failed to create campaign:", err);
+      setError(String(err));
       setLoading(false);
     }
   };
 
   return (
-    <motion.form
-      onSubmit={handleSubmit}
-      initial={{ opacity: 0, y: 12 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.3 }}
-    >
+    <motion.form onSubmit={handleSubmit} initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3 }}>
       <Card>
         <CardHeader>
-          <CardTitle className="text-base">Campaign Details</CardTitle>
+          <CardTitle className="text-base">Filtro da campanha</CardTitle>
         </CardHeader>
         <CardContent className="space-y-5">
           <div className="space-y-2">
-            <Label htmlFor="name">Campaign Name</Label>
-            <Input id="name" placeholder="e.g. Restaurant Bandung Q2 2026" value={form.name} onChange={set("name")} required />
+            <Label htmlFor="name">Nome da campanha</Label>
+            <Input id="name" placeholder="ex.: Barbearias Curitiba" value={form.name} onChange={set("name")} required />
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div className="space-y-2">
-              <Label>Industry</Label>
-              <Select value={form.industry} onValueChange={(v) => setForm((p) => ({ ...p, industry: v }))}>
-                <SelectTrigger><SelectValue placeholder="Select industry" /></SelectTrigger>
+              <Label htmlFor="niche">Nicho</Label>
+              <Input id="niche" data-testid="niche-input" placeholder="ex.: barbearia" value={form.niche} onChange={set("niche")} required />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="city">Cidade</Label>
+              <Input id="city" data-testid="city-input" placeholder="ex.: Curitiba" value={form.city} onChange={set("city")} required />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="country">País</Label>
+              <Input id="country" placeholder="ex.: Brasil" value={form.country} onChange={set("country")} required />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+            <div className="space-y-2">
+              <Label htmlFor="radius">Raio (km)</Label>
+              <Input id="radius" type="number" min={1} max={100} value={form.radiusKm} onChange={set("radiusKm")} />
+            </div>
+            <div className="space-y-2">
+              <Label>Porte</Label>
+              <Select value={form.sizeHint} onValueChange={select("sizeHint")}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
-                  {INDUSTRIES.map((i) => (
-                    <SelectItem key={i.value} value={i.value}>{i.label}</SelectItem>
+                  <SelectItem value="micro">Micro</SelectItem>
+                  <SelectItem value="small">Pequeno</SelectItem>
+                  <SelectItem value="medium">Médio</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="budget">Orçamento alvo (US$)</Label>
+              <Input id="budget" type="number" min={0} value={form.budgetUsd} onChange={set("budgetUsd")} />
+            </div>
+            <div className="space-y-2">
+              <Label>Máx. de leads</Label>
+              <Select value={form.maxResults} onValueChange={select("maxResults")}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  {["20", "50", "100", "200"].map((n) => (
+                    <SelectItem key={n} value={n}>{n}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>
             </div>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div className="space-y-2">
-              <Label htmlFor="location">Location</Label>
-              <Input id="location" placeholder="e.g. Bandung, Jakarta" value={form.location} onChange={set("location")} required />
+              <Label>Idioma das mensagens</Label>
+              <Select value={form.language} onValueChange={select("language")}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="pt-BR">Português (BR)</SelectItem>
+                  <SelectItem value="en">English</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label>Canal principal</Label>
+              <Select value={form.channel} onValueChange={select("channel")}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="whatsapp">WhatsApp</SelectItem>
+                  <SelectItem value="email">E-mail</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="flex items-end pb-2">
+              <label className="flex items-center gap-2 text-sm">
+                <input
+                  type="checkbox"
+                  data-testid="require-no-site"
+                  checked={form.requireNoSite}
+                  onChange={(e) => setForm((p) => ({ ...p, requireNoSite: e.target.checked }))}
+                />
+                Somente empresas sem site
+              </label>
             </div>
           </div>
 
           <div className="space-y-2">
-            <div className="flex items-center justify-between">
-              <Label>Search Queries</Label>
-              <Badge variant="secondary" className="text-xs">
-                {queries.length} {queries.length === 1 ? "query" : "queries"}
-              </Badge>
-            </div>
-            <div className="space-y-2">
-              {queries.map((q, i) => (
-                <div key={i} className="flex gap-2">
-                  <Input
-                    data-testid="query-input"
-                    placeholder={`e.g. ${form.industry || "restaurant"} ${form.location || "Jakarta"}`}
-                    value={q}
-                    onChange={(e) => updateQuery(i, e.target.value)}
-                    required
-                  />
-                  {queries.length > 1 && (
-                    <Button type="button" variant="ghost" size="icon" onClick={() => removeQuery(i)} className="flex-shrink-0 text-muted-foreground hover:text-destructive">
-                      <X className="w-4 h-4" />
-                    </Button>
-                  )}
-                </div>
-              ))}
-            </div>
-            <Button type="button" variant="outline" size="sm" onClick={addQuery} className="text-xs mt-1">
-              <Plus className="w-3 h-3 mr-1" />Add search query
-            </Button>
+            <Label htmlFor="service">Seu serviço (usado nos rascunhos)</Label>
+            <Textarea id="service" rows={2} className="resize-none" value={form.service} onChange={set("service")} required />
           </div>
 
-          <div className="space-y-2">
-            <Label htmlFor="service">Your Service / Product</Label>
-            <Textarea
-              id="service"
-              placeholder="Describe what you're offering to these leads..."
-              value={form.yourService}
-              onChange={set("yourService")}
-              className="resize-none"
-              rows={3}
-              required
-            />
-          </div>
-
-          <div className="grid grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div className="space-y-2">
-              <Label>Max Results</Label>
-              <Select value={form.maxResults} onValueChange={(v) => setForm((p) => ({ ...p, maxResults: v }))}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  {["10", "20", "50", "100"].map((n) => (
-                    <SelectItem key={n} value={n}>{n} leads</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <Label htmlFor="price">Preço-âncora</Label>
+              <Input id="price" placeholder="ex.: a partir de R$ 1.500" value={form.priceAnchor} onChange={set("priceAnchor")} />
             </div>
             <div className="space-y-2">
-              <Label>Content Style</Label>
-              <Select value={form.contentStyle} onValueChange={(v) => setForm((p) => ({ ...p, contentStyle: v }))}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="professional">Professional</SelectItem>
-                  <SelectItem value="friendly">Friendly</SelectItem>
-                  <SelectItem value="balanced">Balanced</SelectItem>
-                  <SelectItem value="casual">Casual</SelectItem>
-                </SelectContent>
-              </Select>
+              <Label htmlFor="deadline">Prazo</Label>
+              <Input id="deadline" placeholder="ex.: 7 dias" value={form.deadline} onChange={set("deadline")} />
             </div>
             <div className="space-y-2">
-              <Label>Language</Label>
-              <Select value={form.language} onValueChange={(v) => setForm((p) => ({ ...p, language: v }))}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="indonesian">Indonesian</SelectItem>
-                  <SelectItem value="english">English</SelectItem>
-                </SelectContent>
-              </Select>
+              <Label htmlFor="seller">Seu nome</Label>
+              <Input id="seller" placeholder="ex.: Ryan" value={form.sellerName} onChange={set("sellerName")} />
             </div>
           </div>
+          {error && <p className="text-sm text-destructive">{error}</p>}
         </CardContent>
         <CardFooter className="gap-3">
-          <Button type="button" variant="outline" onClick={() => router.back()}>Cancel</Button>
+          <Button type="button" variant="outline" onClick={() => router.back()}>Cancelar</Button>
           <Button type="submit" variant="gradient" className="flex-1" disabled={loading}>
-            {loading ? (
-              <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Starting campaign...</>
-            ) : (
-              "Start Campaign"
-            )}
+            {loading ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Iniciando...</> : "Iniciar campanha"}
           </Button>
         </CardFooter>
       </Card>

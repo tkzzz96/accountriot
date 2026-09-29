@@ -6,6 +6,8 @@ import { LeadsService } from "../leads/leads.service";
 import { LeadIntelligenceService } from "../ai/lead-intelligence.service";
 import { MarketingAiService } from "../ai/marketing-ai.service";
 import { GoogleMapsScraperService } from "./google-maps.scraper";
+import { PipelineService } from "../pipeline/pipeline.service";
+import { CampaignFilter } from "../campaigns/dto/campaign-filter.dto";
 
 export interface ScraperJobData {
   campaignId: string;
@@ -17,6 +19,7 @@ export interface ScraperJobData {
   yourService: string;
   contentStyle: string;
   language: string;
+  filter?: CampaignFilter | null;
 }
 
 @Processor("scraper")
@@ -30,6 +33,7 @@ export class ScraperProcessor extends WorkerHost {
     private leadIntelligence: LeadIntelligenceService,
     private marketingAi: MarketingAiService,
     private googleMaps: GoogleMapsScraperService,
+    private pipeline: PipelineService,
   ) {
     super();
   }
@@ -38,6 +42,8 @@ export class ScraperProcessor extends WorkerHost {
     const data = job.data;
     const { campaignId, workspaceId } = data;
     this.logger.log(`Starting campaign ${campaignId} (job ${job.id})`);
+
+    if (data.filter) return this.processProspector(data);
 
     try {
       await this.campaigns.updateStatus(campaignId, "running", 0);
@@ -121,6 +127,20 @@ export class ScraperProcessor extends WorkerHost {
       this.logger.error(`Campaign ${campaignId} failed: ${err}`);
       await this.campaigns.updateStatus(campaignId, "failed", undefined, String(err));
       throw err; // re-throw so BullMQ can retry if configured
+    }
+  }
+
+  private async processProspector(data: ScraperJobData): Promise<void> {
+    const { campaignId, workspaceId } = data;
+    try {
+      await this.campaigns.updateStatus(campaignId, "running", 0);
+      const ids = await this.pipeline.discoverAndClassify(campaignId, workspaceId, data.filter!);
+      await this.campaigns.updateStats(campaignId, { totalLeads: ids.length });
+      await this.campaigns.updateStatus(campaignId, "completed", 100);
+    } catch (err) {
+      this.logger.error(`Campaign ${campaignId} failed: ${err}`);
+      await this.campaigns.updateStatus(campaignId, "failed", undefined, String(err));
+      throw err;
     }
   }
 

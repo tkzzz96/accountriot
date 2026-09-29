@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from "@nestjs/common";
+import { BadRequestException, Injectable, NotFoundException } from "@nestjs/common";
 import { PrismaService } from "../prisma/prisma.service";
 import { CreateCampaignDto } from "./dto/create-campaign.dto";
 import { UpdateCampaignDto } from "./dto/update-campaign.dto";
@@ -32,12 +32,24 @@ export class CampaignsService {
       create: { id: workspaceId, name: "Default Workspace", slug: "default" },
       update: {},
     });
+    const { filter, ...rest } = dto;
+    const industry = rest.industry ?? filter?.niche;
+    const location = rest.location ?? (filter ? [filter.city, filter.country].filter(Boolean).join(", ") : undefined);
+    const yourService = rest.yourService ?? filter?.service ?? "Website development";
+    if (!industry || !location) {
+      throw new BadRequestException("Provide either filter (niche/city/country) or industry + location");
+    }
     return this.prisma.campaign.create({
       data: {
-        ...dto,
-        maxResults: dto.maxResults ?? 20,
-        contentStyle: dto.contentStyle ?? "balanced",
-        language: dto.language ?? "indonesian",
+        ...rest,
+        industry,
+        location,
+        yourService,
+        searchQueries: rest.searchQueries ?? (filter ? [filter.niche] : [industry]),
+        maxResults: filter?.maxResults ?? rest.maxResults ?? 20,
+        contentStyle: rest.contentStyle ?? "balanced",
+        language: filter?.language ?? rest.language ?? "indonesian",
+        filter: filter ? (JSON.parse(JSON.stringify(filter)) as object) : undefined,
         workspaceId,
       },
     });
@@ -45,7 +57,11 @@ export class CampaignsService {
 
   async update(id: string, dto: UpdateCampaignDto, workspaceId = DEFAULT_WORKSPACE_ID) {
     await this.findOne(id, workspaceId);
-    return this.prisma.campaign.update({ where: { id }, data: dto });
+    const { filter, ...rest } = dto;
+    return this.prisma.campaign.update({
+      where: { id },
+      data: { ...rest, ...(filter && { filter: JSON.parse(JSON.stringify(filter)) as object }) },
+    });
   }
 
   async remove(id: string, workspaceId = DEFAULT_WORKSPACE_ID) {

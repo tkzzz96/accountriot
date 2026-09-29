@@ -37,6 +37,7 @@ export class ScraperController {
         yourService: campaign.yourService,
         contentStyle: campaign.contentStyle,
         language: campaign.language,
+        filter: (campaign.filter as unknown as ScraperJobData["filter"]) ?? null,
       },
       {
         attempts: 2,

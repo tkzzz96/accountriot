@@ -125,6 +125,9 @@ model Campaign {
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
 
+  // Prospector filter: { niche, country, city, radiusKm, sizeHint, budgetUsd, language, channel, requireNoSite, ... }
+  filter Json?
+
   totalLeads       Int   @default(0)
   priorityLeads    Int   @default(0)
   highQualityLeads Int   @default(0)
@@ -162,6 +165,20 @@ model Lead {
 
   marketingContent Json?
 
+  // ---- Prospector fields ----
+  siteStatus       SiteStatus    @default(UNKNOWN)
+  siteEvidence     Json?         // { url, httpStatus, dnsOk, reason }
+  whatsapp         String?
+  contactSource    String?
+  ownerContactType OwnerContactType @default(UNKNOWN)
+  budgetScore      Int           @default(0)
+  budgetSignals    Json?
+  references       Json?         // [{ url, thumbUrl, source, niche, title }] x3
+  pipelineStage    PipelineStage @default(DISCOVERED)
+  pipelineError    String?
+  phoneNormalized  String?
+  dedupeKey        String?
+
   crmStatus    String    @default("new")
   crmNotes     String?
   followUpDate DateTime?
@@ -184,6 +201,8 @@ model Lead {
   activities LeadActivity[]
   followUps  FollowUp[]
 
+  @@unique([workspaceId, dedupeKey])
+  @@unique([workspaceId, phoneNormalized])
   @@map("leads")
 }
 
@@ -269,4 +288,58 @@ model ApiKey {
   workspaceId String
 
   @@map("api_keys")
+}
+
+// ============ PROSPECTOR ============
+
+enum SiteStatus {
+  NONE
+  SOCIAL_ONLY
+  FREE_BUILDER
+  DEAD
+  HAS_SITE
+  UNKNOWN
+}
+
+enum OwnerContactType {
+  OWNER
+  BUSINESS
+  UNKNOWN
+}
+
+enum PipelineStage {
+  DISCOVERED
+  CLASSIFIED
+  ENRICHED
+  SCORED
+  DRAFTED
+  READY
+  FAILED
+}
+
+// Curated website references per niche (Phase 4)
+model CuratedReference {
+  id       String @id @default(cuid())
+  niche    String
+  language String @default("any")
+  url      String
+  thumbUrl String
+  title    String
+  source   String @default("curated")
+
+  @@unique([niche, url])
+  @@map("curated_references")
+}
+
+// Cache of reference searches per (niche, language)
+model ReferenceCache {
+  id        String   @id @default(cuid())
+  niche     String
+  language  String
+  items     Json
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  @@unique([niche, language])
+  @@map("reference_cache")
 }

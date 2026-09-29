@@ -12,6 +12,7 @@ import { EnrichmentService } from "../enrichment/enrichment.service";
 import { scoreLead } from "../scoring/scoring";
 import { budgetSignals } from "../scoring/budget-signals";
 import { Prisma } from "@prisma/client";
+import { ReferencesService } from "../references/references.service";
 import { OutreachService } from "../outreach/outreach.service";
 import { Channel, Lang } from "../outreach/outreach.logic";
 
@@ -41,6 +42,7 @@ export class PipelineService {
     private discovery: DiscoveryService,
     private enrichment: EnrichmentService,
     private outreach: OutreachService,
+    private references: ReferencesService,
   ) {}
 
   /** Discover + classify + persist. Returns ids of created leads. */
@@ -166,9 +168,12 @@ export class PipelineService {
       lead.pipelineStage = "DRAFTED";
     }
 
-    // References are added in Phase 4; DRAFTED is the terminal stage until then.
     if (lead.pipelineStage === "DRAFTED") {
-      await this.prisma.lead.update({ where: { id: leadId }, data: { pipelineStage: "READY", pipelineError: null } });
+      const refs = await this.references.forLead(leadId, filter.niche ?? lead.campaign.industry, filter.language ?? "pt-BR");
+      await this.prisma.lead.update({
+        where: { id: leadId },
+        data: { references: refs as unknown as Prisma.InputJsonValue, pipelineStage: "READY", pipelineError: null },
+      });
     }
   }
 

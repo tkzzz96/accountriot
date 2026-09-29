@@ -4,11 +4,12 @@ import { PipelineService } from "./pipeline.service";
 import { PipelineProcessor } from "./pipeline.processor";
 import { CampaignsModule } from "../campaigns/campaigns.module";
 import { DiscoveryModule } from "../discovery/discovery.module";
+import { ReferencesModule } from "../references/references.module";
 import { OutreachModule } from "../outreach/outreach.module";
 import { EnrichmentModule } from "../enrichment/enrichment.module";
 
 @Module({
-  imports: [BullModule.registerQueue({ name: "pipeline" }), CampaignsModule, DiscoveryModule, EnrichmentModule, OutreachModule],
+  imports: [BullModule.registerQueue({ name: "pipeline" }), CampaignsModule, DiscoveryModule, EnrichmentModule, OutreachModule, ReferencesModule],
   providers: [PipelineService, PipelineProcessor],
   exports: [PipelineService, BullModule],
 })

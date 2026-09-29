@@ -21,7 +21,26 @@ export interface Lead {
   category?: string;
   campaignId: string;
   campaign?: { id: string; name: string };
+  siteStatus?: "NONE" | "SOCIAL_ONLY" | "FREE_BUILDER" | "DEAD" | "HAS_SITE" | "UNKNOWN";
+  siteEvidence?: { url?: string | null; httpStatus?: number | null; dnsOk?: boolean | null; reason?: string } | null;
+  whatsapp?: string | null;
+  email?: string | null;
+  contactSource?: string | null;
+  ownerContactType?: "OWNER" | "BUSINESS" | "UNKNOWN";
+  budgetScore?: number;
+  budgetSignals?: { label: string; disclaimer: string; signals: Array<{ signal: string; points: number; detail: string }> } | null;
+  references?: Array<{ url: string; thumbUrl: string; source: string; niche: string; title: string }> | null;
+  pipelineStage?: "DISCOVERED" | "CLASSIFIED" | "ENRICHED" | "SCORED" | "DRAFTED" | "READY" | "FAILED";
+  pipelineError?: string | null;
   marketingContent?: {
+    channel?: "whatsapp" | "email";
+    lang?: string;
+    text?: string;
+    subject?: string;
+    status?: "draft";
+    generator?: "llm" | "template";
+    generatedAt?: string;
+    drafts?: Record<string, { channel: "whatsapp" | "email"; lang: string; text: string; subject?: string; status: "draft"; generator: string }>;
     email?: { subject: string; body: string };
     whatsapp?: string;
     instagram?: string;
@@ -31,6 +50,8 @@ export interface Lead {
   aiAnalysis?: {
     factors?: string[];
     recommendation?: string;
+    score?: { tier: "HOT" | "WARM" | "COLD"; preset: string; breakdown: Array<{ key: string; label: string; points: number; max: number; reason: string }> };
+    enrichment?: { contacts: Array<{ type: string; value: string; source: string; verified?: string }>; socials: Record<string, string>; notes: string[] };
   };
   activities?: Array<{ id: string; type: string; note: string; createdAt: string }>;
   scrapedAt: string;

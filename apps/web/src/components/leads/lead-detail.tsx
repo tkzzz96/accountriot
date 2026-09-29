@@ -10,6 +10,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { ArrowLeft, Phone, Globe, MapPin, Star, Mail, MessageCircle, Loader2, Copy, Instagram } from "lucide-react";
 import { useLead } from "@/hooks/use-leads";
+import { ProspectorCard } from "./prospector-card";
 import { api } from "@/lib/api";
 
 const container = {
@@ -109,6 +110,7 @@ export function LeadDetail({ id }: { id: string }) {
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
         <motion.div variants={item} className="lg:col-span-2 space-y-4">
+          <ProspectorCard lead={lead} onChange={refresh} />
           {/* Contact Info */}
           <Card>
             <CardHeader className="pb-3">

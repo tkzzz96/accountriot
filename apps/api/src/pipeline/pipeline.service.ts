@@ -1,4 +1,4 @@
-import { Injectable, Logger } from "@nestjs/common";
+import { Injectable, Logger, NotFoundException } from "@nestjs/common";
 import { PrismaService } from "../prisma/prisma.service";
 import { CampaignsService } from "../campaigns/campaigns.service";
 import { DiscoveryService } from "../discovery/discovery.service";
@@ -12,6 +12,8 @@ import { EnrichmentService } from "../enrichment/enrichment.service";
 import { scoreLead } from "../scoring/scoring";
 import { budgetSignals } from "../scoring/budget-signals";
 import { Prisma } from "@prisma/client";
+import { OutreachService } from "../outreach/outreach.service";
+import { Channel, Lang } from "../outreach/outreach.logic";
 
 type Json = Record<string, unknown>;
 
@@ -38,6 +40,7 @@ export class PipelineService {
     private campaigns: CampaignsService,
     private discovery: DiscoveryService,
     private enrichment: EnrichmentService,
+    private outreach: OutreachService,
   ) {}
 
   /** Discover + classify + persist. Returns ids of created leads. */
@@ -158,10 +161,62 @@ export class PipelineService {
       lead.pipelineStage = "SCORED";
     }
 
-    // Drafting and references are added by later phases; SCORED is the terminal stage until then.
     if (lead.pipelineStage === "SCORED") {
+      await this.draftForLead(leadId);
+      lead.pipelineStage = "DRAFTED";
+    }
+
+    // References are added in Phase 4; DRAFTED is the terminal stage until then.
+    if (lead.pipelineStage === "DRAFTED") {
       await this.prisma.lead.update({ where: { id: leadId }, data: { pipelineStage: "READY", pipelineError: null } });
     }
+  }
+
+  /** (Re)generates the message DRAFT for a lead. Never sends anything. */
+  async draftForLead(leadId: string, workspaceId?: string, channel?: Channel, lang?: Lang) {
+    const lead = await this.prisma.lead.findFirst({ where: { id: leadId, ...(workspaceId && { workspaceId }) }, include: { campaign: true } });
+    if (!lead) throw new NotFoundException(`Lead ${leadId} not found`);
+    const filter = (lead.campaign.filter ?? {}) as unknown as CampaignFilter;
+    const ch: Channel = channel ?? (filter.channel === "email" ? "email" : "whatsapp");
+    const lg: Lang = lang ?? (filter.language === "en" ? "en" : "pt-BR");
+    const rating = lead.rating ? parseFloat(lead.rating) : null;
+    const draft = await this.outreach.draft(
+      {
+        name: lead.name,
+        rating: rating != null && !Number.isNaN(rating) ? rating : null,
+        reviewCount: lead.reviewCount,
+        siteStatus: lead.siteStatus,
+        siteEvidence: lead.siteEvidence as { url?: string | null; reason?: string } | null,
+      },
+      {
+        niche: filter.niche ?? lead.campaign.industry,
+        city: filter.city ?? lead.campaign.location,
+        service: filter.service ?? lead.campaign.yourService,
+        priceAnchor: filter.priceAnchor,
+        deadline: filter.deadline,
+        sellerName: filter.sellerName,
+      },
+      ch,
+      lg,
+    );
+    // Keep one draft per channel so regenerating email does not erase the WhatsApp draft.
+    const prev = (lead.marketingContent ?? {}) as { drafts?: Record<string, unknown> };
+    const drafts = { ...(prev.drafts ?? {}), [ch]: draft };
+    await this.prisma.lead.update({
+      where: { id: leadId },
+      data: {
+        marketingContent: { ...draft, drafts } as unknown as Prisma.InputJsonValue,
+        pipelineStage: lead.pipelineStage === "SCORED" ? "DRAFTED" : lead.pipelineStage,
+      },
+    });
+    return draft;
+  }
+
+  /** LGPD/GDPR: permanently erase a lead and its activities. */
+  async deleteLead(leadId: string, workspaceId: string): Promise<void> {
+    const lead = await this.prisma.lead.findFirst({ where: { id: leadId, workspaceId } });
+    if (!lead) throw new NotFoundException(`Lead ${leadId} not found`);
+    await this.prisma.lead.delete({ where: { id: leadId } });
   }
 
   async markFailed(leadId: string, reason: string): Promise<void> {

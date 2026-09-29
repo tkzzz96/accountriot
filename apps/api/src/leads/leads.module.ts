@@ -1,10 +1,11 @@
 import { Module } from "@nestjs/common";
 import { LeadsController } from "./leads.controller";
 import { LeadsService } from "./leads.service";
+import { PipelineModule } from "../pipeline/pipeline.module";
 import { AuthModule } from "../auth/auth.module";
 
 @Module({
-  imports: [AuthModule],
+  imports: [AuthModule, PipelineModule],
   controllers: [LeadsController],
   providers: [LeadsService],
   exports: [LeadsService],

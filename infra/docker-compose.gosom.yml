@@ -1,0 +1,15 @@
+# gosom/google-maps-scraper sidecar (MIT). Runs isolated; called via REST by apps/api.
+# Usage: docker compose -f infra/docker-compose.gosom.yml up -d
+# API docs: http://localhost:8080/api/docs
+services:
+  gosom:
+    image: gosom/google-maps-scraper:latest
+    container_name: prospector_gosom
+    restart: unless-stopped
+    command: ["-web", "-addr", ":8080", "-data-folder", "/gmapsdata"]
+    ports:
+      - "127.0.0.1:8080:8080"
+    volumes:
+      - gosom_data:/gmapsdata
+volumes:
+  gosom_data:

@@ -22,10 +22,16 @@ Dono do projeto: Ryan (estrategista web/PM, fala português). Responda ao Ryan e
 7. Scrapers de terceiros rodam em Docker isolado. Respeitar rate limit e `robots.txt` no crawl de sites de leads.
 8. Cada fase termina com: testes passando, `pnpm lint`, `pnpm build`, e commit próprio. Não iniciar a fase seguinte sem eu (Ryan) aprovar.
 
-## Comandos (confirmar em Fase 0 e atualizar aqui)
-- `pnpm install` · `pnpm dev` · `pnpm build` · `pnpm lint` · `pnpm test`
-- `docker compose up -d` (Postgres, Redis, gosom sidecar)
-- `pnpm --filter database prisma migrate dev`
+## Comandos (confirmados na Fase 0)
+- `pnpm install` · `pnpm build` · `pnpm dev` (turbo: api 3001, web 3000, marketing 3002)
+- Banco: `pnpm --filter @prospex/database db:push` (dev) · `db:migrate` · `db:deploy` · `exec prisma generate`
+- Typecheck: `pnpm --filter @prospex/api exec tsc --noEmit` e `pnpm --filter @prospex/web exec tsc --noEmit`
+- Testes: NÃO existe `pnpm test`. Só e2e Playwright: `pnpm test:e2e` (com api+web rodando). Unit runner (Vitest) será criado na Fase 1.
+- Lint: `pnpm lint` está QUEBRADO na base (`next lint` inexistente no Next instalado; eslint da api falha por config). Corrigir no início da Fase 1.
+- Env: copiar `.env.example` para `apps/api/.env` e `packages/database/.env` (JWT_SECRET, ENCRYPTION_KEY obrigatórios).
+- Sem Docker (ambiente cloud): Postgres 16 e Redis nativos (`service postgresql start`, `redis-server --daemonize yes`).
+- gosom: `docker compose -f infra/docker-compose.gosom.yml up -d` (REST em :8080). Binário local: `go build` em `vendor-ref/google-maps-scraper`.
+- Health: `curl localhost:3001/api/health`. Base importada do Prospex; CLAUDE.md original em `docs/PROSPEX_CLAUDE.md`.
 
 ## Convenções
 - TypeScript estrito. Validar entradas com zod/class-validator. Erros explícitos, sem `catch` vazio.

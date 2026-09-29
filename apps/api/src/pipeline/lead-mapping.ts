@@ -31,7 +31,8 @@ export function placeToLeadData(place: DiscoveredPlace, site: SiteClassification
     phoneNormalized,
     // Only a phone from the public Maps profile: business line, never presumed to be the owner.
     contactSource: place.phone ? `${place.source}:maps_profile` : null,
-    ownerContactType: "UNKNOWN" as const,
+    // A phone published on the Maps profile is a BUSINESS contact; OWNER is never inferred.
+    ownerContactType: (place.phone ? "BUSINESS" : "UNKNOWN") as "BUSINESS" | "UNKNOWN",
     email: place.emails[0] ?? null,
     website: place.website,
     hasWebsite: site.status === "HAS_SITE",

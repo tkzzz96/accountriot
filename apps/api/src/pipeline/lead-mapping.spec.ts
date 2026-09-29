@@ -26,10 +26,10 @@ describe("dedupePlaces", () => {
 
 describe("placeToLeadData", () => {
   const site = { status: "NONE" as const, evidence: { url: null, httpStatus: null, dnsOk: null, reason: "x" } };
-  it("marks contact source, never owner", () => {
+  it("marks contact source, business not owner", () => {
     const d = placeToLeadData(place(), site, "55");
     expect(d.contactSource).toBe("gosom:maps_profile");
-    expect(d.ownerContactType).toBe("UNKNOWN");
+    expect(d.ownerContactType).toBe("BUSINESS");
     expect(d.phoneNormalized).toBe("+5511999998888");
     expect(d.siteEvidence).toBeDefined();
   });

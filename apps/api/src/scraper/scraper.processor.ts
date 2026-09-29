@@ -7,6 +7,9 @@ import { LeadIntelligenceService } from "../ai/lead-intelligence.service";
 import { MarketingAiService } from "../ai/marketing-ai.service";
 import { GoogleMapsScraperService } from "./google-maps.scraper";
 import { PipelineService } from "../pipeline/pipeline.service";
+import { LEAD_JOB_OPTS, LeadJobData } from "../pipeline/pipeline.processor";
+import { InjectQueue } from "@nestjs/bullmq";
+import { Queue } from "bullmq";
 import { CampaignFilter } from "../campaigns/dto/campaign-filter.dto";
 
 export interface ScraperJobData {
@@ -34,6 +37,7 @@ export class ScraperProcessor extends WorkerHost {
     private marketingAi: MarketingAiService,
     private googleMaps: GoogleMapsScraperService,
     private pipeline: PipelineService,
+    @InjectQueue("pipeline") private pipelineQueue: Queue<LeadJobData>,
   ) {
     super();
   }
@@ -136,7 +140,13 @@ export class ScraperProcessor extends WorkerHost {
       await this.campaigns.updateStatus(campaignId, "running", 0);
       const ids = await this.pipeline.discoverAndClassify(campaignId, workspaceId, data.filter!);
       await this.campaigns.updateStats(campaignId, { totalLeads: ids.length });
-      await this.campaigns.updateStatus(campaignId, "completed", 100);
+      if (ids.length === 0) {
+        await this.campaigns.updateStatus(campaignId, "completed", 100);
+        return;
+      }
+      await this.pipelineQueue.addBulk(
+        ids.map((leadId) => ({ name: "lead", data: { leadId, campaignId }, opts: LEAD_JOB_OPTS })),
+      );
     } catch (err) {
       this.logger.error(`Campaign ${campaignId} failed: ${err}`);
       await this.campaigns.updateStatus(campaignId, "failed", undefined, String(err));

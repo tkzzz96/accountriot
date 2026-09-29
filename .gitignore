@@ -36,3 +36,4 @@ apps/web/next-env.d.ts
 
 # Phase 0 additions
 vendor-ref/
+dump.rdb

@@ -1,0 +1,15 @@
+# Postgres + Redis only, for scripts/start-local.sh (app runs natively).
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: prospex
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-prospex}
+      POSTGRES_DB: prospex
+    ports: ["127.0.0.1:5432:5432"]
+    volumes: [pg_data:/var/lib/postgresql/data]
+  redis:
+    image: redis:7-alpine
+    ports: ["127.0.0.1:6379:6379"]
+volumes:
+  pg_data:

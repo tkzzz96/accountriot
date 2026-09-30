@@ -14,7 +14,9 @@
     "test:e2e": "playwright test --config=playwright.config.ts",
     "test:e2e:ui": "playwright test --config=playwright.config.ts --ui",
     "test:e2e:report": "playwright show-report",
-    "test": "turbo test"
+    "test": "turbo test",
+    "app": "bash scripts/start-local.sh",
+    "app:stop": "bash scripts/start-local.sh stop"
   },
   "devDependencies": {
     "@playwright/test": "^1.48.0",

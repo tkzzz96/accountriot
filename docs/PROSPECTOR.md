@@ -2,7 +2,15 @@
 
 Ferramenta que, dado um filtro (nicho, cidade/país, porte, orçamento alvo, idioma, canal), encontra empresas **sem site** (ou só com rede social, site gratuito ou domínio morto), enriquece o contato, pontua, escreve um **rascunho** de follow-up, anexa **3 referências de site** do nicho e grava tudo no CRM. **Nada é enviado automaticamente.**
 
-## Subir localmente (com Docker)
+## Iniciar o app (um comando)
+```bash
+pnpm install      # só na primeira vez
+pnpm app          # = scripts/start-local.sh  → http://localhost:3000
+pnpm app:stop     # para API + web
+```
+O script cria `.env` com segredos aleatórios, sobe Postgres + Redis (Docker se houver; senão usa os locais), aplica o banco, faz o build na primeira vez e inicia API (:3001) e web (:3000). Usa o gosom automaticamente se estiver em `localhost:8080`; caso contrário roda com dados de **demonstração** (`mock`). Logs em `.run/`.
+
+## Subir manualmente (com Docker)
 ```bash
 cp .env.example apps/api/.env && cp .env.example packages/database/.env   # ajuste JWT_SECRET e ENCRYPTION_KEY
 docker compose up -d postgres redis                                     # Postgres 16 + Redis 7

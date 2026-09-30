@@ -23,6 +23,7 @@ Dono do projeto: Ryan (estrategista web/PM, fala português). Responda ao Ryan e
 8. Cada fase termina com: testes passando, `pnpm lint`, `pnpm build`, e commit próprio. Não iniciar a fase seguinte sem eu (Ryan) aprovar.
 
 ## Comandos (confirmados na Fase 0)
+- App local em um comando: `pnpm app` (start) / `pnpm app:stop` (scripts/start-local.sh; logs em .run/).
 - `pnpm install` · `pnpm build` · `pnpm dev` (turbo: api 3001, web 3000, marketing 3002)
 - Banco: `pnpm --filter @prospex/database db:push` (dev) · `db:migrate` · `db:deploy` · `exec prisma generate`
 - Typecheck: `pnpm --filter @prospex/api exec tsc --noEmit` e `pnpm --filter @prospex/web exec tsc --noEmit`

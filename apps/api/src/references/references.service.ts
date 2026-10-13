@@ -25,12 +25,24 @@ export class ReferencesService implements OnModuleInit {
 
   async onModuleInit(): Promise<void> {
     try {
-      const created = await this.prisma.curatedReference.createMany({
-        data: CURATED_SEED.map((s) => ({ workspaceId: "", niche: s.niche, language: "any", url: s.url, title: s.title, thumbUrl: thumbFor(s.url, this.thumbTemplate), source: "curated" })),
-        skipDuplicates: true,
-      });
-      // New seed rows must not wait for the cache TTL to show up.
-      if (created.count > 0) await this.prisma.referenceCache.deleteMany({});
+      const existing = await this.prisma.curatedReference.findMany({ where: { workspaceId: "" } });
+      const byKey = new Map(existing.map((r) => [`${r.niche}|${r.url}`, r]));
+      const changedNiches = new Set<string>();
+      const toCreate: Prisma.CuratedReferenceCreateManyInput[] = [];
+      for (const seed of CURATED_SEED) {
+        const thumbUrl = thumbFor(seed.url, this.thumbTemplate);
+        const row = byKey.get(`${seed.niche}|${seed.url}`);
+        if (!row) {
+          toCreate.push({ workspaceId: "", niche: seed.niche, language: "any", url: seed.url, title: seed.title, thumbUrl, source: "curated" });
+          changedNiches.add(seed.niche);
+        } else if (row.title !== seed.title || row.thumbUrl !== thumbUrl) {
+          await this.prisma.curatedReference.update({ where: { id: row.id }, data: { title: seed.title, thumbUrl } });
+          changedNiches.add(seed.niche);
+        }
+      }
+      if (toCreate.length) await this.prisma.curatedReference.createMany({ data: toCreate, skipDuplicates: true });
+      // Changed seed rows must not wait for the cache TTL; only the affected niches are invalidated.
+      if (changedNiches.size) await this.prisma.referenceCache.deleteMany({ where: { niche: { in: [...changedNiches] } } });
     } catch (err) {
       this.logger.error(`Could not seed curated references: ${err instanceof Error ? err.message : String(err)}`);
     }
@@ -58,9 +70,14 @@ export class ReferencesService implements OnModuleInit {
    */
   async candidates(workspaceId: string, rawNiche: string, language: string): Promise<RefItem[]> {
     const niche = canonicalNiche(rawNiche);
-    const own = workspaceId ? (await this.curated.find(niche, language, workspaceId)).filter((r) => r.workspaceOwned) : [];
-    const shared = await this.sharedPool(niche, language);
-    const generic = niche !== "generic" ? await this.sharedPool("generic", language) : [];
+    const [own, shared] = await Promise.all([
+      workspaceId ? this.curated.find(niche, language, workspaceId).then((rows) => rows.filter((r) => r.workspaceOwned)) : Promise.resolve([] as RefItem[]),
+      this.sharedPool(niche, language),
+    ]);
+    const pool = mergePool(own, shared, () => []);
+    if (pool.length >= 3 || niche === "generic") return pool;
+    // Generic fallback: curated rows only (never triggers external provider searches for "generic").
+    const generic = await this.curated.find("generic", language, "");
     return mergePool(own, shared, () => generic);
   }
 

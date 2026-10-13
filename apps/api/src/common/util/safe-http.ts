@@ -14,6 +14,8 @@ export class BlockedAddressError extends Error {
     this.name = "BlockedAddressError";
   }
 }
+const AUTHORITATIVE_DNS_CODES = new Set(["ENOTFOUND", "ENODATA", "EAI_NONAME", "EAI_NODATA"]);
+
 export class DnsFailureError extends Error {
   constructor(message: string, readonly code: string) {
     super(message);
@@ -21,7 +23,7 @@ export class DnsFailureError extends Error {
   }
   /** NXDOMAIN-style answers are authoritative; anything else (EAI_AGAIN, timeouts, SERVFAIL) is a resolver problem. */
   get authoritative(): boolean {
-    return this.code === "ENOTFOUND" || this.code === "ENODATA";
+    return AUTHORITATIVE_DNS_CODES.has(this.code);
   }
 }
 

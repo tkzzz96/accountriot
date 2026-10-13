@@ -68,8 +68,9 @@ while IFS= read -r line || [ -n "$line" ]; do
   case "$line" in ''|\#*) continue ;; esac
   key="${line%%=*}"; val="${line#*=}"
   [[ "$key" =~ ^[A-Za-z_][A-Za-z0-9_]*$ ]] || continue
-  if [[ "$val" =~ ^\"(.*)\"([[:space:]]+\#.*)?[[:space:]]*$ ]]; then val="${BASH_REMATCH[1]}"      # "quoted value" (inner quotes kept; trailing comment ignored)
-  elif [[ "$val" =~ ^\'(.*)\'([[:space:]]+\#.*)?[[:space:]]*$ ]]; then val="${BASH_REMATCH[1]}"  # 'quoted value'
+  dq='^"(([^"\\]|\\.)*)"[[:space:]]*(#.*)?$'; sq="^'([^']*)'[[:space:]]*(#.*)?$"
+  if [[ "$val" =~ $dq ]]; then val="${BASH_REMATCH[1]}"       # "quoted value": escaped \" kept; a trailing comment (even one containing quotes) is ignored
+  elif [[ "$val" =~ $sq ]]; then val="${BASH_REMATCH[1]}"     # 'quoted value'
   else val="$(printf '%s' "$val" | sed -E 's/[[:space:]]+#.*$//; s/[[:space:]]+$//')"; fi   # bare value: strip "  # comment"
   [ -z "${!key+x}" ] && export "$key=$val"   # real environment variables win over the file
 done < apps/api/.env

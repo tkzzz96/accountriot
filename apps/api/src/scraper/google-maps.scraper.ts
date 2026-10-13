@@ -1,4 +1,4 @@
-import { Injectable, Logger } from "@nestjs/common";
+import { Injectable, Logger, OnModuleDestroy } from "@nestjs/common";
 import { chromium, Browser, Page } from "playwright";
 
 export interface ScrapedBusiness {
@@ -26,9 +26,14 @@ function extractLatLng(url: string): { lat: number | null; lng: number | null } 
 }
 
 @Injectable()
-export class GoogleMapsScraperService {
+export class GoogleMapsScraperService implements OnModuleDestroy {
   private readonly logger = new Logger(GoogleMapsScraperService.name);
   private browser: Browser | null = null;
+
+  async onModuleDestroy(): Promise<void> {
+    await this.browser?.close().catch((err) => this.logger.warn(`browser close failed: ${String(err)}`));
+    this.browser = null;
+  }
 
   private async getBrowser(): Promise<Browser> {
     if (!this.browser || !this.browser.isConnected()) {

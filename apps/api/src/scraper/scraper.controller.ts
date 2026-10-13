@@ -1,4 +1,5 @@
 import { BadRequestException, ConflictException, Controller, Post, Param, HttpCode, HttpStatus, UseGuards } from "@nestjs/common";
+import { Throttle } from "@nestjs/throttler";
 import { InjectQueue } from "@nestjs/bullmq";
 import { Queue } from "bullmq";
 import { ApiTags, ApiOperation, ApiBearerAuth } from "@nestjs/swagger";
@@ -17,6 +18,7 @@ export class ScraperController {
     private readonly campaigns: CampaignsService,
   ) {}
 
+  @Throttle({ default: { limit: 6, ttl: 60_000 } })
   @Post("campaigns/:id/start")
   @HttpCode(HttpStatus.ACCEPTED)
   @ApiOperation({ summary: "Start campaign scraping job" })

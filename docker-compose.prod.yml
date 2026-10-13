@@ -45,6 +45,9 @@ services:
       OPENAI_MODEL: ${OPENAI_MODEL:-gpt-4o-mini}
       OPENAI_BASE_URL: ${OPENAI_BASE_URL:-}
       PORT: 3001
+      DISCOVERY_DRIVER: ${DISCOVERY_DRIVER:-gosom}
+      GOSOM_URL: http://gosom:8080
+      PLACES_API_KEY: ${PLACES_API_KEY:-}
       NEXT_PUBLIC_APP_URL: ${APP_URL:-http://localhost:3000}
     depends_on:
       postgres:
@@ -56,6 +59,15 @@ services:
       interval: 15s
       timeout: 5s
       retries: 5
+
+  # Third-party scraper (MIT) isolated in its own container; only reachable from the api service.
+  gosom:
+    image: gosom/google-maps-scraper:latest
+    container_name: prospex_gosom
+    restart: unless-stopped
+    command: ["-web", "-addr", ":8080", "-data-folder", "/gmapsdata"]
+    volumes:
+      - gosom_data:/gmapsdata
 
   web:
     build:
@@ -86,3 +98,4 @@ services:
 volumes:
   postgres_data:
   redis_data:
+  gosom_data:

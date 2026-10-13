@@ -26,6 +26,8 @@ jobs:
       - run: pnpm --filter @prospex/database exec prisma generate
       - run: pnpm --filter @prospex/api exec tsc --noEmit
       - run: pnpm --filter @prospex/web exec tsc --noEmit
+      - run: pnpm --filter @prospex/mcp exec tsc --noEmit
+      - run: pnpm lint
 
   # ─── Job 2: Build ────────────────────────────────────────────────────────────
   build:
@@ -114,7 +116,7 @@ jobs:
         run: npx playwright install chromium --with-deps
 
       - name: Unit tests
-        run: pnpm --filter @prospex/api test
+        run: pnpm --filter @prospex/api test && pnpm --filter @prospex/mcp test
 
       - name: Build API
         run: pnpm --filter @prospex/api build

@@ -38,3 +38,5 @@ apps/web/next-env.d.ts
 vendor-ref/
 dump.rdb
 .run/
+test-results/
+playwright-report/

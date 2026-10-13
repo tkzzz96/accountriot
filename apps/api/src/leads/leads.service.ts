@@ -44,10 +44,9 @@ export class LeadsService {
         orderBy: [{ score: "desc" }, { createdAt: "desc" }],
         skip,
         take: limit,
-        include: {
-          activities: { orderBy: { createdAt: "desc" }, take: 5 },
-          campaign: { select: { id: true, name: true } },
-        },
+        // List rows only need summary fields; the heavy JSON and activities are served by findOne().
+        omit: { aiAnalysis: true, marketingContent: true, budgetSignals: true, references: true, siteEvidence: false },
+        include: { campaign: { select: { id: true, name: true } } },
       }),
       this.prisma.lead.count({ where }),
     ]);

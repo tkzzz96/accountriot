@@ -138,6 +138,7 @@ model Campaign {
 
   leads Lead[]
 
+  @@index([workspaceId, createdAt(sort: Desc)])
   @@map("campaigns")
 }
 
@@ -203,6 +204,10 @@ model Lead {
 
   @@unique([workspaceId, dedupeKey])
   @@unique([workspaceId, phoneNormalized])
+  @@index([campaignId, pipelineStage])
+  @@index([workspaceId, siteStatus])
+  @@index([workspaceId, score(sort: Desc)])
+  @@index([workspaceId, crmStatus])
   @@map("leads")
 }
 
@@ -216,6 +221,7 @@ model LeadActivity {
   lead   Lead   @relation(fields: [leadId], references: [id], onDelete: Cascade)
   leadId String
 
+  @@index([leadId, createdAt(sort: Desc)])
   @@map("lead_activities")
 }
 
@@ -230,6 +236,7 @@ model FollowUp {
   lead   Lead   @relation(fields: [leadId], references: [id], onDelete: Cascade)
   leadId String
 
+  @@index([leadId, done])
   @@map("follow_ups")
 }
 

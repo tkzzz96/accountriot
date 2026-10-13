@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { canonicalNiche } from "./niches";
-import { pickDiverse, RefItem, thumbFor, hash } from "./selection";
+import { pickDiverse, mergePool, RefItem, thumbFor, hash } from "./selection";
 import { CURATED_SEED } from "./seed";
 
 const item = (url: string, source = "curated"): RefItem => ({ url, thumbUrl: thumbFor(url), source, niche: "x", title: url });
@@ -57,5 +57,26 @@ describe("thumbFor / seed", () => {
   it("seed has no duplicate (niche,url)", () => {
     const keys = CURATED_SEED.map((s) => `${s.niche}|${s.url}`);
     expect(new Set(keys).size).toBe(keys.length);
+  });
+});
+
+describe("mergePool", () => {
+  const mk = (n: number, prefix = "s") => Array.from({ length: n }, (_, i) => item(`https://${prefix}${i}.com`));
+  it("own references come first", () => expect(mergePool(mk(1, "own"), mk(2), () => mk(5, "g"))[0].url).toBe("https://own0.com"));
+  it("3 own references are enough: no generic fallback", () => {
+    const pool = mergePool(mk(3, "own"), [], () => mk(5, "g"));
+    expect(pool.map((r) => r.url).some((u) => u.includes("g0"))).toBe(false);
+  });
+  it("falls back to generic only when fewer than 3 distinct", () => {
+    expect(mergePool(mk(1, "own"), mk(1), () => mk(2, "g")).length).toBe(4);
+    expect(mergePool([], mk(3), () => mk(2, "g")).length).toBe(3);
+  });
+  it("dedupes a workspace copy of a seeded URL (own wins) and counts distinct URLs for the threshold", () => {
+    const own = [{ ...item("https://dup.com"), title: "mine" }];
+    const shared = [item("https://dup.com"), item("https://other.com")];
+    const pool = mergePool(own, shared, () => mk(1, "g"));
+    expect(pool.filter((r) => r.url === "https://dup.com")).toHaveLength(1);
+    expect(pool.find((r) => r.url === "https://dup.com")?.title).toBe("mine");
+    expect(pool).toHaveLength(3); // 2 distinct + 1 generic
   });
 });

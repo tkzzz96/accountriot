@@ -25,11 +25,11 @@ export class DnsFailureError extends Error {
   }
 }
 
-const DNS_ERROR_CODES = new Set(["ENOTFOUND", "ENODATA", "EAI_AGAIN", "ESERVFAIL", "ETIMEOUT", "EAI_FAIL"]);
 export function toDnsFailure(err: NodeJS.ErrnoException): DnsFailureError | null {
   const resolverSyscall = err.syscall === "getaddrinfo" || err.syscall === "queryA" || err.syscall === "queryAaaa";
-  // Only resolver errors qualify; a connect/read error with an odd code stays a plain transport error.
-  return resolverSyscall && err.code && DNS_ERROR_CODES.has(err.code) ? new DnsFailureError(err.message, err.code) : null;
+  // Any resolver error (getaddrinfo / c-ares query) is a DNS failure; only ENOTFOUND/ENODATA are authoritative (see `authoritative`).
+  // A connect/read error stays a plain transport error.
+  return resolverSyscall && err.code ? new DnsFailureError(err.message, err.code) : null;
 }
 
 const V4_BLOCKS: Array<[string, number]> = [

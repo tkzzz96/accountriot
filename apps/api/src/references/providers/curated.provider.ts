@@ -17,6 +17,6 @@ export class CuratedProvider implements ReferenceProvider {
     const seen = new Set<string>();
     return rows
       .filter((r) => (seen.has(r.url) ? false : (seen.add(r.url), true)))
-      .map((r) => ({ url: r.url, thumbUrl: r.thumbUrl, source: r.source, niche: r.niche, title: r.title }));
+      .map((r) => ({ url: r.url, thumbUrl: r.thumbUrl, source: r.source, niche: r.niche, title: r.title, ...(r.workspaceId ? { workspaceOwned: true } : {}) }));
   }
 }

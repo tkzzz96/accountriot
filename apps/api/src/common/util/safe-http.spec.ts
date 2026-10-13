@@ -112,7 +112,7 @@ describe("DNS error classification", () => {
     expect(toDnsFailure(e("ENODATA"))?.authoritative).toBe(true);
   });
   it("EAI_AGAIN / SERVFAIL / timeouts are transient resolver problems", () => {
-    for (const c of ["EAI_AGAIN", "ESERVFAIL", "ETIMEOUT"]) expect(toDnsFailure(e(c))?.authoritative, c).toBe(false);
+    for (const c of ["EAI_AGAIN", "ESERVFAIL", "ETIMEOUT", "EAI_NODATA", "EAI_SYSTEM", "EAI_MEMORY"]) expect(toDnsFailure(e(c))?.authoritative, c).toBe(false);
   });
   it("non-DNS errors are not mapped", () => expect(toDnsFailure(e("ECONNRESET", "read"))).toBeNull());
 });

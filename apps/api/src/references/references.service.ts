@@ -6,7 +6,7 @@ import { canonicalNiche } from "./niches";
 import { CURATED_SEED } from "./seed";
 import { CuratedProvider } from "./providers/curated.provider";
 import { PinterestProvider } from "./providers/pinterest.provider";
-import { RefItem, pickDiverse, thumbFor } from "./selection";
+import { RefItem, mergePool, pickDiverse, thumbFor } from "./selection";
 
 @Injectable()
 export class ReferencesService implements OnModuleInit {
@@ -25,13 +25,12 @@ export class ReferencesService implements OnModuleInit {
 
   async onModuleInit(): Promise<void> {
     try {
-      for (const s of CURATED_SEED) {
-        await this.prisma.curatedReference.upsert({
-          where: { workspaceId_niche_url: { workspaceId: "", niche: s.niche, url: s.url } },
-          create: { workspaceId: "", niche: s.niche, language: "any", url: s.url, title: s.title, thumbUrl: thumbFor(s.url, this.thumbTemplate), source: "curated" },
-          update: {},
-        });
-      }
+      const created = await this.prisma.curatedReference.createMany({
+        data: CURATED_SEED.map((s) => ({ workspaceId: "", niche: s.niche, language: "any", url: s.url, title: s.title, thumbUrl: thumbFor(s.url, this.thumbTemplate), source: "curated" })),
+        skipDuplicates: true,
+      });
+      // New seed rows must not wait for the cache TTL to show up.
+      if (created.count > 0) await this.prisma.referenceCache.deleteMany({});
     } catch (err) {
       this.logger.error(`Could not seed curated references: ${err instanceof Error ? err.message : String(err)}`);
     }
@@ -59,10 +58,10 @@ export class ReferencesService implements OnModuleInit {
    */
   async candidates(workspaceId: string, rawNiche: string, language: string): Promise<RefItem[]> {
     const niche = canonicalNiche(rawNiche);
+    const own = workspaceId ? (await this.curated.find(niche, language, workspaceId)).filter((r) => r.workspaceOwned) : [];
     const shared = await this.sharedPool(niche, language);
-    const own = workspaceId ? (await this.curated.find(niche, language, workspaceId)).filter((r) => r.source === "curated") : [];
-    const seen = new Set<string>();
-    return [...own, ...shared].filter((r) => (seen.has(r.url) ? false : (seen.add(r.url), true)));
+    const generic = niche !== "generic" ? await this.sharedPool("generic", language) : [];
+    return mergePool(own, shared, () => generic);
   }
 
   private async sharedPool(niche: string, language: string): Promise<RefItem[]> {
@@ -73,7 +72,6 @@ export class ReferencesService implements OnModuleInit {
     }
     this.logger.log(`references cache MISS niche=${niche} lang=${language} — searching providers`);
     let items = await this.curated.find(niche, language, "");
-    if (items.length < 3) items = [...items, ...(await this.curated.find("generic", language, ""))];
     if (this.pinterest.enabled) {
       try {
         items = [...items, ...(await this.pinterest.find(niche))];

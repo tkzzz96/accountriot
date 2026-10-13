@@ -41,7 +41,13 @@ export class EnrichmentService {
         if (fetched >= MAX_PAGES) break;
         const url = new URL(path || base.pathname, base.origin).toString();
         try {
-          const page = await this.fetcher.fetchHtml(url);
+          let page = await this.fetcher.fetchHtml(url);
+          // A page cut off mid-transfer may be missing its footer (where contacts live): try once more before giving up.
+          if (page?.truncated) {
+            const again = await this.fetcher.fetchHtml(url);
+            if (again && !again.truncated) page = again;
+            else errors.push(`partial page received: ${url}`);
+          }
           if (!page) {
             errors.push(`robots.txt disallows ${url}`);
             continue;

@@ -57,7 +57,7 @@ export class ScraperController {
       // Redis down etc.: do not leave the campaign stuck in "running" with no job behind it.
       // A failure of this cleanup must not hide the original error.
       await this.campaigns
-        .updateStatus(campaign.id, "failed", 0, "Could not queue the campaign (is Redis running?)")
+        .updateStatus(campaign.id, "failed", undefined, "Could not queue the campaign (is Redis running?)")
         .catch((e) => this.logger.error(`could not mark campaign ${campaign.id} as failed: ${String(e)}`));
       throw err;
     }

@@ -4,6 +4,8 @@ export interface RefItem {
   source: string;
   niche: string;
   title: string;
+  /** true for rows owned by a workspace (vs the shared seed / external providers). Not persisted in the shared cache. */
+  workspaceOwned?: boolean;
 }
 
 /** Cheap deterministic string hash → used to rotate picks per lead so all leads don't get the same 3. */
@@ -50,4 +52,16 @@ export function pickDiverse(candidates: RefItem[], seed: string, n = 3): RefItem
 
 export function thumbFor(url: string, template = "https://s0.wp.com/mshots/v1/{url}?w=640&h=400"): string {
   return template.replace("{url}", encodeURIComponent(url));
+}
+
+/**
+ * Candidate pool: the workspace's own references first, then the shared pool; the generic fallback is used only when
+ * fewer than `min` distinct references exist (own references count toward that minimum).
+ */
+export function mergePool(own: RefItem[], shared: RefItem[], generic: () => RefItem[], min = 3): RefItem[] {
+  const seen = new Set<string>();
+  const unique = (list: RefItem[]) => list.filter((r) => (seen.has(r.url) ? false : (seen.add(r.url), true)));
+  let pool = unique([...own, ...shared]);
+  if (pool.length < min) pool = [...pool, ...unique(generic())];
+  return pool;
 }

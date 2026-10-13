@@ -2,18 +2,7 @@ import { Injectable, Logger } from "@nestjs/common";
 import { OnWorkerEvent, Processor, WorkerHost } from "@nestjs/bullmq";
 import { Job } from "bullmq";
 import { PipelineService } from "./pipeline.service";
-
-export interface LeadJobData {
-  leadId: string;
-  campaignId: string;
-}
-
-export const LEAD_JOB_OPTS = {
-  attempts: 3,
-  backoff: { type: "exponential" as const, delay: 3000 },
-  removeOnComplete: 500,
-  removeOnFail: 200,
-};
+import { LeadJobData } from "./pipeline.constants";
 
 /** One job per lead. The persisted `pipelineStage` makes each retry resume where it stopped. */
 @Processor("pipeline", { concurrency: 4 })

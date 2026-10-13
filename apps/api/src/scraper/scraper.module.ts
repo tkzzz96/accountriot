@@ -3,10 +3,7 @@ import { BullModule } from "@nestjs/bullmq";
 import { ConfigModule, ConfigService } from "@nestjs/config";
 import { ScraperController } from "./scraper.controller";
 import { ScraperProcessor } from "./scraper.processor";
-import { GoogleMapsScraperService } from "./google-maps.scraper";
 import { CampaignsModule } from "../campaigns/campaigns.module";
-import { LeadsModule } from "../leads/leads.module";
-import { AiModule } from "../ai/ai.module";
 import { PipelineModule } from "../pipeline/pipeline.module";
 import { AuthModule } from "../auth/auth.module";
 
@@ -23,12 +20,10 @@ import { AuthModule } from "../auth/auth.module";
     }),
     BullModule.registerQueue({ name: "scraper" }),
     CampaignsModule,
-    LeadsModule,
-    AiModule,
     AuthModule,
     PipelineModule,
   ],
   controllers: [ScraperController],
-  providers: [ScraperProcessor, GoogleMapsScraperService],
+  providers: [ScraperProcessor],
 })
 export class ScraperModule {}

@@ -67,6 +67,7 @@ export class WorkspaceService {
     });
     if (!member) throw new NotFoundException("Member not found");
     if (member.role === "owner") throw new ForbiddenException("Cannot change the owner's role");
+    await this.requireOwnerForAdminTarget(workspaceId, requesterId, member.role);
 
     return this.prisma.workspaceMember.update({
       where: { id: memberId },
@@ -83,8 +84,18 @@ export class WorkspaceService {
     });
     if (!member) throw new NotFoundException("Member not found");
     if (member.role === "owner") throw new ForbiddenException("Cannot remove the workspace owner");
+    await this.requireOwnerForAdminTarget(workspaceId, requesterId, member.role);
 
     return this.prisma.workspaceMember.delete({ where: { id: memberId } });
+  }
+
+  /** Admins manage regular members; only the owner may touch another admin. */
+  private async requireOwnerForAdminTarget(workspaceId: string, requesterId: string, targetRole: string) {
+    if (targetRole !== "admin") return;
+    const me = await this.prisma.workspaceMember.findUnique({
+      where: { workspaceId_userId: { workspaceId, userId: requesterId } },
+    });
+    if (me?.role !== "owner") throw new ForbiddenException("Only the workspace owner can change or remove admins");
   }
 
   private async requireOwnerOrAdmin(workspaceId: string, userId: string) {

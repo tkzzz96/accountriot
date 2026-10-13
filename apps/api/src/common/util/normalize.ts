@@ -1,4 +1,5 @@
 /** Normalize a phone to E.164-ish digits with "+" prefix. Returns null if not plausible. */
+/** `defaultCountryCode` "" means "unknown country": only numbers that already carry a country code are accepted. */
 export function normalizePhone(raw: string | null | undefined, defaultCountryCode = "55"): string | null {
   if (!raw) return null;
   const hasPlus = raw.trim().startsWith("+");
@@ -6,6 +7,7 @@ export function normalizePhone(raw: string | null | undefined, defaultCountryCod
   if (!digits) return null;
   if (!hasPlus) {
     if (digits.startsWith("00")) digits = digits.slice(2);
+    else if (!defaultCountryCode) return null;
     else if (digits.startsWith("0")) digits = defaultCountryCode + digits.replace(/^0+/, "");
     else if (digits.length <= 11) digits = defaultCountryCode + digits;
   }
@@ -35,9 +37,13 @@ const CALLING_CODES: Record<string, string> = {
   argentina: "54", chile: "56", colombia: "57", mexico: "52", méxico: "52",
   spain: "34", espanha: "34", españa: "34", es: "34",
   germany: "49", alemanha: "49", france: "33", frança: "33", italy: "39", itália: "39",
-  australia: "61", indonesia: "62",
+  australia: "61", indonesia: "62", uruguay: "598", paraguay: "595", bolivia: "591", peru: "51", ecuador: "593",
+  venezuela: "58", "costa rica": "506", panama: "507", "dominican republic": "1", "república dominicana": "1",
+  netherlands: "31", belgium: "32", switzerland: "41", austria: "43", ireland: "353", sweden: "46", norway: "47",
+  denmark: "45", poland: "48", japan: "81", india: "91", "south africa": "27", "new zealand": "64",
+  angola: "244", mozambique: "258", moçambique: "258", "cabo verde": "238", "united arab emirates": "971", uae: "971",
 };
 
 export function countryCallingCode(country: string | null | undefined): string {
-  return CALLING_CODES[(country ?? "").trim().toLowerCase()] ?? "55";
+  return CALLING_CODES[(country ?? "").trim().toLowerCase()] ?? ""; // unknown: never guess a country
 }

@@ -1,3 +1,4 @@
+import { InviteMemberDto, UpdateRoleDto, UpdateWorkspaceDto } from "./dto";
 import { Controller, Get, Post, Patch, Delete, Body, Param, UseGuards, HttpCode, HttpStatus } from "@nestjs/common";
 import { ApiTags, ApiOperation, ApiBearerAuth } from "@nestjs/swagger";
 import { WorkspaceService } from "./workspace.service";
@@ -23,7 +24,7 @@ export class WorkspaceController {
   updateWorkspace(
     @WorkspaceId() workspaceId: string,
     @CurrentUserId() requesterId: string,
-    @Body() body: { name?: string; slug?: string },
+    @Body() body: UpdateWorkspaceDto,
   ) {
     return this.workspaceService.updateWorkspace(workspaceId, body, requesterId);
   }
@@ -39,7 +40,7 @@ export class WorkspaceController {
   inviteMember(
     @WorkspaceId() workspaceId: string,
     @CurrentUserId() requesterId: string,
-    @Body() body: { email: string; role?: string },
+    @Body() body: InviteMemberDto,
   ) {
     return this.workspaceService.inviteMember(workspaceId, body.email, body.role ?? "member", requesterId);
   }
@@ -50,7 +51,7 @@ export class WorkspaceController {
     @WorkspaceId() workspaceId: string,
     @CurrentUserId() requesterId: string,
     @Param("id") memberId: string,
-    @Body() body: { role: string },
+    @Body() body: UpdateRoleDto,
   ) {
     return this.workspaceService.updateMemberRole(workspaceId, memberId, body.role, requesterId);
   }

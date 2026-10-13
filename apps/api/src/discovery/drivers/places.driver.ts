@@ -70,6 +70,7 @@ export class PlacesApiDriver implements DiscoveryDriver {
         method: "POST",
         headers: { "Content-Type": "application/json", "X-Goog-Api-Key": key, "X-Goog-FieldMask": FIELD_MASK + ",nextPageToken" },
         body: JSON.stringify(body),
+        signal: AbortSignal.timeout(30_000),
       });
       if (!res.ok) throw new Error(`Places API HTTP ${res.status}: ${await res.text()}`);
       const json = (await res.json()) as { places?: PlacesApiPlace[]; nextPageToken?: string };

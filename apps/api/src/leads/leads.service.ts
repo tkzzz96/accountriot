@@ -9,6 +9,9 @@ export interface LeadFilter {
   q?: string;
   priority?: string;
   status?: string;
+  siteStatus?: string;
+  stage?: string;
+  minScore?: number;
   page?: number;
   limit?: number;
 }
@@ -18,7 +21,10 @@ export class LeadsService {
   constructor(private prisma: PrismaService) {}
 
   async findAll(workspaceId = DEFAULT_WORKSPACE_ID, filter: LeadFilter = {}) {
-    const { campaignId, q, priority, status, page = 1, limit = 50 } = filter;
+    const { campaignId, q, priority, status, siteStatus, stage, minScore } = filter;
+    // Clamp paging input: bounded page size, 1-based page.
+    const limit = Math.min(200, Math.max(1, filter.limit ?? 50));
+    const page = Math.max(1, filter.page ?? 1);
     const skip = (page - 1) * limit;
 
     const where = {
@@ -26,13 +32,16 @@ export class LeadsService {
       ...(campaignId && { campaignId }),
       ...(priority && { priority }),
       ...(status && { crmStatus: status }),
+      ...(siteStatus && { siteStatus: siteStatus as never }),
+      ...(stage && { pipelineStage: stage as never }),
+      ...(minScore != null && !Number.isNaN(minScore) && { score: { gte: minScore } }),
       ...(q && { name: { contains: q, mode: "insensitive" as const } }),
     };
 
     const [data, total] = await Promise.all([
       this.prisma.lead.findMany({
         where,
-        orderBy: [{ priority: "asc" }, { score: "desc" }],
+        orderBy: [{ score: "desc" }, { createdAt: "desc" }],
         skip,
         take: limit,
         include: {

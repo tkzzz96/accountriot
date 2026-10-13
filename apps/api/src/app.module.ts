@@ -9,7 +9,6 @@ import { CampaignsModule } from "./campaigns/campaigns.module";
 import { LeadsModule } from "./leads/leads.module";
 import { AnalyticsModule } from "./analytics/analytics.module";
 import { ScraperModule } from "./scraper/scraper.module";
-import { AiModule } from "./ai/ai.module";
 import { SettingsModule } from "./settings/settings.module";
 import { ExportModule } from "./export/export.module";
 import { AuthModule } from "./auth/auth.module";
@@ -30,6 +29,12 @@ import { WorkspaceModule } from "./workspace/workspace.module";
         OPENAI_MODEL: Joi.string().default("gpt-4o-mini"),
         OPENAI_BASE_URL: Joi.string().allow("").default(""),
         NEXT_PUBLIC_APP_URL: Joi.string().default("http://localhost:3000"),
+        DISCOVERY_DRIVER: Joi.string().valid("gosom", "places", "playwright", "mock").default("gosom"),
+        GOSOM_URL: Joi.string().uri().default("http://localhost:8080"),
+        PLACES_API_KEY: Joi.string().allow("").default(""),
+        EMAIL_SMTP_VERIFY: Joi.string().valid("true", "false").default("false"),
+        REFERENCE_TTL_DAYS: Joi.number().min(1).default(30),
+        ENABLE_API_DOCS: Joi.string().valid("true", "false").default("false"),
         THROTTLE_TTL_MS: Joi.number().default(60000),
         THROTTLE_LIMIT: Joi.number().default(60),
         AUTH_THROTTLE_LIMIT: Joi.number().default(10),
@@ -47,7 +52,6 @@ import { WorkspaceModule } from "./workspace/workspace.module";
     LeadsModule,
     AnalyticsModule,
     ScraperModule,
-    AiModule,
     SettingsModule,
     ExportModule,
     AuthModule,

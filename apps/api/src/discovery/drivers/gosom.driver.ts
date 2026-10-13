@@ -3,6 +3,7 @@ import { ConfigService } from "@nestjs/config";
 import { DiscoveredPlace, DiscoveryDriver, DiscoveryQuery } from "../discovery.types";
 import { parseGosomCsv } from "./gosom.parser";
 
+const HTTP_TIMEOUT_MS = 30_000;
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 /** Calls the gosom/google-maps-scraper sidecar (Docker) via its REST API. */
@@ -40,25 +41,32 @@ export class GosomDriver implements DiscoveryDriver {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(body),
+      signal: AbortSignal.timeout(HTTP_TIMEOUT_MS),
     });
     if (!created.ok) throw new Error(`gosom job creation failed: HTTP ${created.status} ${await created.text()}`);
     const { id } = (await created.json()) as { id: string };
     this.logger.log(`gosom job ${id} started for "${keyword}"`);
 
-    const deadline = Date.now() + 10 * 60 * 1000;
-    for (;;) {
-      if (Date.now() > deadline) throw new Error(`gosom job ${id} timed out`);
-      await sleep(4000);
-      const res = await fetch(`${this.baseUrl}/api/v1/jobs/${id}`);
-      if (!res.ok) throw new Error(`gosom status failed: HTTP ${res.status}`);
-      const job = (await res.json()) as Record<string, string>;
-      const status = String(job.Status ?? job.status ?? "").toLowerCase();
-      if (status === "ok") break;
-      if (status === "failed") throw new Error(`gosom job ${id} failed`);
+    try {
+      const deadline = Date.now() + 10 * 60 * 1000;
+      for (;;) {
+        if (Date.now() > deadline) throw new Error(`gosom job ${id} timed out`);
+        await sleep(4000);
+        const res = await fetch(`${this.baseUrl}/api/v1/jobs/${id}`, { signal: AbortSignal.timeout(HTTP_TIMEOUT_MS) });
+        if (!res.ok) throw new Error(`gosom status failed: HTTP ${res.status}`);
+        const job = (await res.json()) as Record<string, string>;
+        const status = String(job.Status ?? job.status ?? "").toLowerCase();
+        if (status === "ok") break;
+        if (status === "failed") throw new Error(`gosom job ${id} failed`);
+      }
+      const csv = await fetch(`${this.baseUrl}/api/v1/jobs/${id}/download`, { signal: AbortSignal.timeout(HTTP_TIMEOUT_MS) });
+      if (!csv.ok) throw new Error(`gosom download failed: HTTP ${csv.status}`);
+      return parseGosomCsv(await csv.text()).slice(0, q.maxResults);
+    } finally {
+      // Free the sidecar's disk/DB: results were already read.
+      await fetch(`${this.baseUrl}/api/v1/jobs/${id}`, { method: "DELETE", signal: AbortSignal.timeout(HTTP_TIMEOUT_MS) }).catch((err) =>
+        this.logger.warn(`could not delete gosom job ${id}: ${err instanceof Error ? err.message : String(err)}`),
+      );
     }
-
-    const csv = await fetch(`${this.baseUrl}/api/v1/jobs/${id}/download`);
-    if (!csv.ok) throw new Error(`gosom download failed: HTTP ${csv.status}`);
-    return parseGosomCsv(await csv.text()).slice(0, q.maxResults);
   }
 }

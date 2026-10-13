@@ -1,4 +1,4 @@
-import { Injectable, ConflictException, UnauthorizedException } from "@nestjs/common";
+import { Injectable, ConflictException, ForbiddenException, UnauthorizedException } from "@nestjs/common";
 import { JwtService } from "@nestjs/jwt";
 import * as bcrypt from "bcryptjs";
 import { PrismaService } from "../prisma/prisma.service";
@@ -73,18 +73,14 @@ export class AuthService {
     if (!valid) throw new UnauthorizedException("Invalid email or password");
 
     const workspace = user.memberships[0]?.workspace;
-    const token = this.jwt.sign({
-      sub: user.id,
-      workspaceId: workspace?.id ?? "default-workspace",
-      email: user.email,
-    });
+    // A user removed from every workspace must not land in a shared fallback workspace.
+    if (!workspace) throw new ForbiddenException("This account does not belong to any workspace");
+    const token = this.jwt.sign({ sub: user.id, workspaceId: workspace.id, email: user.email });
 
     return {
       token,
       user: { id: user.id, name: user.name, email: user.email },
-      workspace: workspace
-        ? { id: workspace.id, name: workspace.name, slug: workspace.slug }
-        : null,
+      workspace: { id: workspace.id, name: workspace.name, slug: workspace.slug },
     };
   }
 

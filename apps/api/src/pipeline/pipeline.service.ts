@@ -1,4 +1,4 @@
-import { Injectable, Logger, NotFoundException } from "@nestjs/common";
+import { BadRequestException, Injectable, Logger, NotFoundException } from "@nestjs/common";
 import { PrismaService } from "../prisma/prisma.service";
 import { CampaignsService } from "../campaigns/campaigns.service";
 import { DiscoveryService } from "../discovery/discovery.service";
@@ -12,6 +12,9 @@ import { EnrichmentService } from "../enrichment/enrichment.service";
 import { scoreLead } from "../scoring/scoring";
 import { budgetSignals } from "../scoring/budget-signals";
 import { Prisma } from "@prisma/client";
+import { InjectQueue } from "@nestjs/bullmq";
+import { Queue } from "bullmq";
+import { LEAD_JOB_OPTS, LeadJobData } from "./pipeline.constants";
 import { ReferencesService } from "../references/references.service";
 import { OutreachService } from "../outreach/outreach.service";
 import { Channel, Lang } from "../outreach/outreach.logic";
@@ -43,6 +46,7 @@ export class PipelineService {
     private enrichment: EnrichmentService,
     private outreach: OutreachService,
     private references: ReferencesService,
+    @InjectQueue("pipeline") private queue: Queue<LeadJobData>,
   ) {}
 
   /** Discover + classify + persist. Returns ids of created leads. */
@@ -77,11 +81,26 @@ export class PipelineService {
       const data = placeToLeadData(place, site, code);
       const existing = await this.prisma.lead.findFirst({ where: { workspaceId, dedupeKey: data.dedupeKey } });
       if (existing) continue; // already known in this workspace (dedupe)
-      const created = await this.prisma.lead.create({ data: { ...data, workspaceId, campaignId } });
-      ids.push(created.id);
+      try {
+        const created = await this.prisma.lead.create({ data: { ...data, workspaceId, campaignId } });
+        ids.push(created.id);
+      } catch (err) {
+        // Concurrent campaigns in the same workspace can race on the unique dedupe keys: treat as "already known".
+        if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === "P2002") continue;
+        throw err;
+      }
     }
     this.logger.log(`Campaign ${campaignId}: ${ids.length} new leads stored`);
     return ids;
+  }
+
+  /** Ids of this campaign's leads that have not reached a terminal stage yet. */
+  async pendingLeadIds(campaignId: string): Promise<string[]> {
+    const rows = await this.prisma.lead.findMany({
+      where: { campaignId, pipelineStage: { notIn: ["READY", "FAILED"] } },
+      select: { id: true },
+    });
+    return rows.map((r) => r.id);
   }
 
   /** Runs the remaining stages for one lead, resuming from its persisted stage (idempotent on retry). */
@@ -222,6 +241,17 @@ export class PipelineService {
     const lead = await this.prisma.lead.findFirst({ where: { id: leadId, workspaceId } });
     if (!lead) throw new NotFoundException(`Lead ${leadId} not found`);
     await this.prisma.lead.delete({ where: { id: leadId } });
+  }
+
+  /** Puts a FAILED lead back to the start of its unfinished stages and enqueues it again. */
+  async retryLead(leadId: string, workspaceId: string): Promise<{ queued: true }> {
+    const lead = await this.prisma.lead.findFirst({ where: { id: leadId, workspaceId } });
+    if (!lead) throw new NotFoundException(`Lead ${leadId} not found`);
+    if (lead.pipelineStage !== "FAILED") throw new BadRequestException("Only FAILED leads can be retried");
+    await this.prisma.lead.update({ where: { id: leadId }, data: { pipelineStage: "CLASSIFIED", pipelineError: null } });
+    await this.campaigns.updateStatus(lead.campaignId, "running", 60);
+    await this.queue.add("lead", { leadId, campaignId: lead.campaignId }, LEAD_JOB_OPTS);
+    return { queued: true };
   }
 
   async markFailed(leadId: string, reason: string): Promise<void> {

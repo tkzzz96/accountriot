@@ -1,12 +1,15 @@
+import { safeGet } from "../common/util/safe-http";
 import { isAllowed, parseRobots, RobotsRules } from "./robots";
 
-const UA = "Mozilla/5.0 (compatible; ProspectorBot/1.0)";
-const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+const MAX_ORIGINS_CACHED = 500;
 
-/** Fetches pages respecting robots.txt and a per-host rate limit. */
+/**
+ * Fetches pages respecting robots.txt and a per-host rate limit (SSRF-safe via safeGet).
+ * Requests to the same host are serialized so concurrent pipeline jobs cannot bypass the delay.
+ */
 export class PoliteFetcher {
   private robots = new Map<string, RobotsRules>();
-  private lastHit = new Map<string, number>();
+  private hostQueue = new Map<string, Promise<unknown>>();
 
   constructor(private minDelayMs = 1000, private timeoutMs = 8000) {}
 
@@ -15,17 +18,28 @@ export class PoliteFetcher {
     if (cached) return cached;
     let rules: RobotsRules = { disallow: [], allow: [], crawlDelaySec: null };
     try {
-      const res = await this.get(`${origin}/robots.txt`);
-      if (res.ok) rules = parseRobots(await res.text());
+      const res = await safeGet(`${origin}/robots.txt`, { timeoutMs: this.timeoutMs, maxBytes: 100_000 });
+      if (res.status >= 200 && res.status < 300) rules = parseRobots(res.body);
     } catch {
-      // Unreachable robots.txt: treated as "no rules"; the page fetch itself will surface real network errors.
+      // Unreachable robots.txt = no rules; the page fetch itself surfaces real network errors.
     }
+    if (this.robots.size >= MAX_ORIGINS_CACHED) this.robots.delete(this.robots.keys().next().value as string);
     this.robots.set(origin, rules);
     return rules;
   }
 
-  private get(url: string): Promise<Response> {
-    return fetch(url, { redirect: "follow", signal: AbortSignal.timeout(this.timeoutMs), headers: { "User-Agent": UA, Accept: "text/html,*/*" } });
+  /** Runs `task` after every earlier task for the same host, spaced by `delayMs`. */
+  private serialize<T>(host: string, delayMs: number, task: () => Promise<T>): Promise<T> {
+    const prev = this.hostQueue.get(host) ?? Promise.resolve();
+    const run = prev.catch(() => undefined).then(async () => {
+      await new Promise((r) => setTimeout(r, delayMs));
+      return task();
+    });
+    this.hostQueue.set(host, run);
+    run.finally(() => {
+      if (this.hostQueue.get(host) === run) this.hostQueue.delete(host);
+    }).catch(() => undefined);
+    return run;
   }
 
   /** Returns HTML, or null when robots.txt disallows the path. Throws on network errors. */
@@ -34,12 +48,8 @@ export class PoliteFetcher {
     const rules = await this.rulesFor(u.origin);
     if (!isAllowed(rules, u.pathname + u.search)) return null;
     const delay = Math.max(this.minDelayMs, (rules.crawlDelaySec ?? 0) * 1000);
-    const wait = (this.lastHit.get(u.host) ?? 0) + delay - Date.now();
-    if (wait > 0) await sleep(wait);
-    this.lastHit.set(u.host, Date.now());
-    const res = await this.get(url);
-    const ct = res.headers.get("content-type") ?? "";
-    if (!ct.includes("html") && !ct.includes("text")) return { html: "", status: res.status };
-    return { html: (await res.text()).slice(0, 500_000), status: res.status };
+    const res = await this.serialize(u.host, delay, () => safeGet(url, { timeoutMs: this.timeoutMs, maxBytes: 500_000 }));
+    const textual = res.contentType === "" || /html|text/i.test(res.contentType);
+    return { html: textual ? res.body : "", status: res.status };
   }
 }

@@ -4,13 +4,13 @@ test.describe("Leads", () => {
   test("leads list page loads", async ({ authedPage: page }) => {
     await page.goto("/leads");
     await expect(page.getByRole("heading", { name: /leads/i })).toBeVisible();
-    await expect(page.getByPlaceholder("Search leads...")).toBeVisible();
+    await expect(page.getByPlaceholder("Buscar leads...")).toBeVisible();
   });
 
   test("search filter narrows results", async ({ authedPage: page }) => {
     await page.goto("/leads");
 
-    const searchInput = page.getByPlaceholder("Search leads...");
+    const searchInput = page.getByPlaceholder("Buscar leads...");
     // Search for something that will not match anything
     await searchInput.fill("__no_match_xyz_12345__");
     // Table should show empty state or 0 rows
@@ -26,11 +26,20 @@ test.describe("Leads", () => {
     await page.goto("/leads");
 
     // Click priority filter
-    await page.locator('button:has-text("All priorities"), [placeholder="Priority"]').first().click();
-    await page.locator('[role="option"]:has-text("High")').click();
+    await page.locator('button:has-text("Todas as prioridades"), [placeholder="Priority"]').first().click();
+    await page.locator('[role="option"]:has-text("Alta")').click();
 
     // URL or UI state changed — just verify no crash
     await expect(page.locator("body")).toBeVisible();
+  });
+
+  test("site status filter narrows the list to leads without a site", async ({ authedPage: page }) => {
+    await page.goto("/leads");
+    await page.getByLabel("Situação do site").click();
+    await page.locator('[role="option"]:has-text("Sem site")').click();
+    // every visible lead row shows the "Sem site" badge
+    await expect(page.locator("a[href^='/leads/']").first()).toBeVisible({ timeout: 10000 });
+    await expect(page.getByText("Tem site", { exact: true })).toHaveCount(0);
   });
 
   test("lead detail page opens from list", async ({ authedPage: page }) => {

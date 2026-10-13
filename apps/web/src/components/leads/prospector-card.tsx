@@ -21,6 +21,34 @@ const STAGE_LABEL: Record<string, string> = {
   SCORED: "Pontuado", DRAFTED: "Rascunho pronto", READY: "Pronto", FAILED: "Falhou",
 };
 
+const EVIDENCE_PT: Record<string, string> = {
+  NO_WEBSITE: "O perfil do Google não tem site cadastrado.",
+  SOCIAL_PROFILE: "O link cadastrado é um perfil de rede social ou página de links, não um site próprio.",
+  FREE_BUILDER: "O site está num endereço gratuito de construtor (sem domínio próprio).",
+  UNPARSEABLE_URL: "O valor cadastrado como site não é uma URL válida.",
+  DNS_FAILURE: "O domínio cadastrado não existe (falha de DNS).",
+  NO_RESPONSE: "O site cadastrado não respondeu.",
+  PARKED_DOMAIN: "O domínio está estacionado, à venda ou suspenso.",
+  HTTP_OK: "O site responde normalmente.",
+  BOT_BLOCKED: "O site está no ar, mas bloqueia acessos automáticos.",
+  HTTP_ERROR: "O endereço cadastrado retorna erro de forma persistente.",
+  HTTP_AMBIGUOUS: "Resposta ambígua do servidor; classificação incerta.",
+  REDIRECT_SOCIAL: "O endereço redireciona para uma rede social.",
+  REDIRECT_FREE_BUILDER: "O endereço redireciona para um construtor gratuito.",
+  OFFLINE: "Sem conexão durante a verificação; não classificado.",
+  NON_PUBLIC_ADDRESS: "O endereço aponta para a rede interna; não foi acessado por segurança.",
+};
+
+/** Only http(s) links are rendered as clickable (data may originate from third-party listings). */
+export function safeHref(url: string | null | undefined): string | undefined {
+  try {
+    const u = new URL(url ?? "");
+    return u.protocol === "http:" || u.protocol === "https:" ? u.toString() : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
 export function waLink(e164: string | null | undefined, text: string): string | null {
   const digits = (e164 ?? "").replace(/\D/g, "");
   return digits ? `https://wa.me/${digits}?text=${encodeURIComponent(text)}` : null;
@@ -40,6 +68,16 @@ export function ProspectorCard({ lead, onChange }: { lead: Lead; onChange: () =>
   const contacts = lead.aiAnalysis?.enrichment?.contacts ?? [];
   const wa = draft?.channel === "whatsapp" ? waLink(lead.whatsapp ?? lead.phone, draft.text!) : null;
   const mail = draft?.channel === "email" ? mailtoLink(lead.email, draft.subject ?? "", draft.text!) : null;
+
+  const retry = async () => {
+    setBusy(true);
+    try {
+      await api.post(`/leads/${lead.id}/retry`, {});
+      onChange();
+    } finally {
+      setBusy(false);
+    }
+  };
 
   const regenerate = async (channel?: "whatsapp" | "email") => {
     setBusy(true);
@@ -62,11 +100,16 @@ export function ProspectorCard({ lead, onChange }: { lead: Lead; onChange: () =>
         </div>
       </CardHeader>
       <CardContent className="space-y-5 text-sm">
-        {lead.pipelineError && <p className="text-destructive">Falha: {lead.pipelineError}</p>}
+        {lead.pipelineError && (
+          <div className="flex flex-wrap items-center gap-2 text-destructive" role="alert">
+            <span>Falha no processamento: {lead.pipelineError}</span>
+            <Button size="sm" variant="outline" disabled={busy} onClick={retry}>Tentar novamente</Button>
+          </div>
+        )}
 
         <section>
           <h4 className="font-medium mb-1">Por que classificamos assim</h4>
-          <p className="text-muted-foreground">{lead.siteEvidence?.reason ?? "—"}</p>
+          <p className="text-muted-foreground">{(lead.siteEvidence?.code && EVIDENCE_PT[lead.siteEvidence.code]) || lead.siteEvidence?.reason || "—"}</p>
           <p className="text-xs text-muted-foreground mt-1 break-all">
             {lead.siteEvidence?.url ?? "sem URL"} · HTTP {lead.siteEvidence?.httpStatus ?? "n/d"} · DNS {lead.siteEvidence?.dnsOk == null ? "n/d" : lead.siteEvidence.dnsOk ? "ok" : "falhou"}
           </p>
@@ -127,10 +170,10 @@ export function ProspectorCard({ lead, onChange }: { lead: Lead; onChange: () =>
           <h4 className="font-medium mb-2">Referências de site do nicho</h4>
           {lead.references && lead.references.length > 0 ? (
             <div className="grid grid-cols-3 gap-3" data-testid="references">
-              {lead.references.map((r) => (
-                <a key={r.url} href={r.url} target="_blank" rel="noreferrer" className="group block rounded-md border overflow-hidden">
+              {lead.references.filter((r) => safeHref(r.url)).map((r) => (
+                <a key={r.url} href={safeHref(r.url)} target="_blank" rel="noreferrer" className="group block rounded-md border overflow-hidden">
                   {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img src={r.thumbUrl} alt={r.title} loading="lazy" referrerPolicy="no-referrer" className="aspect-video w-full object-cover bg-muted" />
+                  <img src={safeHref(r.thumbUrl) ?? ""} alt={`Referência: ${r.title}`} loading="lazy" referrerPolicy="no-referrer" className="aspect-video w-full object-cover bg-muted" />
                   <div className="p-2 text-xs flex items-center justify-between gap-1">
                     <span className="truncate">{r.title}</span><ExternalLink className="w-3 h-3 flex-shrink-0 opacity-60" />
                   </div>

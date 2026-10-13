@@ -61,7 +61,7 @@ export function scoreLead(input: ScoreInput, preset = DEFAULT_PRESET, overrides?
   add(
     "contactability",
     "Contato disponível",
-    contactShare + (input.hasEmail && (input.hasWhatsapp || input.hasPhone) ? 0 : 0),
+    contactShare,
     input.hasWhatsapp ? "WhatsApp identificado" : input.hasPhone ? "Somente telefone" : input.hasEmail ? "Somente e-mail" : "Nenhum contato",
   );
 

@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { normalizePhone, buildDedupeKey, normalizeText } from "./normalize";
+import { normalizePhone, buildDedupeKey, normalizeText, countryCallingCode } from "./normalize";
 
 describe("normalizePhone", () => {
   it("BR mobile with mask", () => expect(normalizePhone("(11) 99999-8888")).toBe("+5511999998888"));
@@ -14,4 +14,13 @@ describe("dedupe", () => {
   it("falls back to name+address, accent-insensitive", () =>
     expect(buildDedupeKey({ name: "Padaria Zé", address: "Rua Á, 1" })).toBe(buildDedupeKey({ name: "padaria ze", address: "rua a 1" })));
   it("normalizeText", () => expect(normalizeText("  Café  Só! ")).toBe("cafe so"));
+});
+
+describe("unknown country is never guessed", () => {
+  it("known countries", () => { expect(countryCallingCode("Brasil")).toBe("55"); expect(countryCallingCode("Portugal")).toBe("351"); expect(countryCallingCode("Peru")).toBe("51"); });
+  it("unknown country -> empty code", () => expect(countryCallingCode("Atlantis")).toBe(""));
+  it("local number without code and unknown country -> null (not +55)", () => expect(normalizePhone("(11) 99999-8888", "")).toBeNull());
+  it("number with + still works for unknown country", () => expect(normalizePhone("+351 912 345 678", "")).toBe("+351912345678"));
+  it("dedupe falls back to name+address when phone cannot be normalized", () =>
+    expect(buildDedupeKey({ name: "A", address: "x", phone: "999" }, "")).toMatch(/^na:/));
 });

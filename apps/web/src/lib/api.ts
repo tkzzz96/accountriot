@@ -5,9 +5,20 @@ function getToken(): string | null {
   return localStorage.getItem("prospex_token");
 }
 
+/** Network failures ("Failed to fetch") get an actionable message instead of the browser's cryptic one. */
+async function doFetch(url: string, init: RequestInit): Promise<Response> {
+  try {
+    return await fetch(url, init);
+  } catch {
+    throw new Error(
+      `Não foi possível conectar à API (${API_URL}). Verifique se ela está rodando (pnpm app) e se o endereço do navegador é http://localhost:3000.`,
+    );
+  }
+}
+
 async function request<T>(path: string, options?: RequestInit): Promise<T> {
   const token = getToken();
-  const res = await fetch(`${API_URL}${path}`, {
+  const res = await doFetch(`${API_URL}${path}`, {
     headers: {
       "Content-Type": "application/json",
       ...(token ? { Authorization: `Bearer ${token}` } : {}),
@@ -27,9 +38,12 @@ async function request<T>(path: string, options?: RequestInit): Promise<T> {
 
   if (!res.ok) {
     const error = await res.json().catch(() => ({ message: "Request failed" }));
-    throw new Error(error.message || `HTTP ${res.status}`);
+    const msg = Array.isArray(error.message) ? error.message.join("; ") : error.message;
+    throw new Error(msg || `HTTP ${res.status}`);
   }
-  return res.json();
+  if (res.status === 204) return undefined as T;
+  const text = await res.text();
+  return (text ? JSON.parse(text) : undefined) as T;
 }
 
 export const api = {
@@ -43,7 +57,7 @@ export const api = {
   /** Fetch a file with auth header and trigger browser download */
   async download(path: string, filename: string): Promise<void> {
     const token = getToken();
-    const res = await fetch(`${API_URL}${path}`, {
+    const res = await doFetch(`${API_URL}${path}`, {
       headers: token ? { Authorization: `Bearer ${token}` } : {},
     });
     if (res.status === 401) {

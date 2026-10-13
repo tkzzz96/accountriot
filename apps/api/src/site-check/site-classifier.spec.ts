@@ -86,3 +86,31 @@ describe("helpers", () => {
   it("looksParked", () => expect(looksParked("Buy this domain today")).toBe(true));
   it("not parked", () => expect(looksParked("Padaria do Zé")).toBe(false));
 });
+
+describe("evidence codes and blocked hosts", () => {
+  const u = "https://example.com/";
+  it("every static outcome has a code", () => {
+    expect(classifyStatic("")?.evidence.code).toBe("NO_WEBSITE");
+    expect(classifyStatic("instagram.com/x")?.evidence.code).toBe("SOCIAL_PROFILE");
+    expect(classifyStatic("a.wixsite.com/x")?.evidence.code).toBe("FREE_BUILDER");
+    expect(classifyStatic("not a url")?.evidence.code).toBe("UNPARSEABLE_URL");
+  });
+  it("probe outcomes have codes", () => {
+    expect(classifyProbe(u, { dnsOk: false, httpStatus: null }).evidence.code).toBe("DNS_FAILURE");
+    expect(classifyProbe(u, { dnsOk: true, httpStatus: 200 }).evidence.code).toBe("HTTP_OK");
+    expect(classifyProbe(u, { dnsOk: true, httpStatus: 403 }).evidence.code).toBe("BOT_BLOCKED");
+    expect(classifyProbe(u, { dnsOk: true, httpStatus: 404 }).evidence.code).toBe("HTTP_ERROR");
+    expect(classifyProbe(u, { dnsOk: true, httpStatus: null }).evidence.code).toBe("NO_RESPONSE");
+    expect(classifyProbe(u, { dnsOk: true, httpStatus: 200, bodySnippet: "domain is for sale" }).evidence.code).toBe("PARKED_DOMAIN");
+    expect(classifyProbe(u, { dnsOk: false, offline: true, httpStatus: null }).evidence.code).toBe("OFFLINE");
+  });
+  it("host resolving to a private address is UNKNOWN, never DEAD, and never fetched", () => {
+    const r = classifyProbe(u, { dnsOk: true, blocked: true, httpStatus: null });
+    expect(r.status).toBe("UNKNOWN");
+    expect(r.evidence.code).toBe("NON_PUBLIC_ADDRESS");
+  });
+  it("redirect codes", () => {
+    expect(classifyProbe(u, { dnsOk: true, httpStatus: 200, finalUrl: "https://instagram.com/x" }).evidence.code).toBe("REDIRECT_SOCIAL");
+    expect(classifyProbe(u, { dnsOk: true, httpStatus: 200, finalUrl: "https://a.wixsite.com/x" }).evidence.code).toBe("REDIRECT_FREE_BUILDER");
+  });
+});

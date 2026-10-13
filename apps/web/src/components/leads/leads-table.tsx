@@ -17,9 +17,9 @@ const item = {
 };
 
 function PriorityBadge({ priority }: { priority: Lead["priority"] }) {
-  if (priority === "HIGH") return <Badge variant="success">High</Badge>;
-  if (priority === "MEDIUM") return <Badge variant="warning">Medium</Badge>;
-  return <Badge variant="secondary">Low</Badge>;
+  if (priority === "HIGH") return <Badge variant="success">Alta</Badge>;
+  if (priority === "MEDIUM") return <Badge variant="warning">Média</Badge>;
+  return <Badge variant="secondary">Baixa</Badge>;
 }
 
 const SITE_TEXT: Record<string, string> = {
@@ -71,8 +71,8 @@ export function LeadsTable({ leads, loading }: Props) {
         <div className="p-3 rounded-full bg-muted">
           <Users className="w-5 h-5 text-muted-foreground" />
         </div>
-        <p className="text-sm font-medium">No leads found</p>
-        <p className="text-xs text-muted-foreground">Try adjusting your search or filters</p>
+        <p className="text-sm font-medium">Nenhum lead encontrado</p>
+        <p className="text-xs text-muted-foreground">Ajuste a busca ou os filtros</p>
       </div>
     );
   }
@@ -118,7 +118,7 @@ export function LeadsTable({ leads, loading }: Props) {
               <div className="text-[10px] text-muted-foreground">Score</div>
             </div>
             <Button variant="ghost" size="icon" className="h-7 w-7" asChild>
-              <Link href={`/leads/${lead.id}`}><ChevronRight className="h-4 w-4" /></Link>
+              <Link href={`/leads/${lead.id}`} aria-label={`Abrir ${lead.name}`}><ChevronRight className="h-4 w-4" /></Link>
             </Button>
           </div>
         </motion.div>

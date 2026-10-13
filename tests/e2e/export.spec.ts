@@ -7,7 +7,7 @@ test.describe("Export", () => {
     // Listen for download event
     const downloadPromise = page.waitForEvent("download", { timeout: 10000 }).catch(() => null);
 
-    const exportBtn = page.locator('button:has-text("Export CSV")');
+    const exportBtn = page.locator('button:has-text("Exportar CSV")');
     await expect(exportBtn).toBeVisible({ timeout: 5000 });
     await exportBtn.click();
 

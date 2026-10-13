@@ -1,5 +1,5 @@
 "use client";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { motion } from "framer-motion";
 import { Button } from "@/components/ui/button";
@@ -26,6 +26,14 @@ export function LeadDetail({ id }: { id: string }) {
   const { lead, loading, refresh } = useLead(id);
   const [crmStatus, setCrmStatus] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+
+  // While the pipeline is still working on this lead, refresh until it reaches READY/FAILED.
+  const stage = lead?.pipelineStage;
+  useEffect(() => {
+    if (!stage || stage === "READY" || stage === "FAILED") return;
+    const t = setInterval(() => { void refresh(); }, 3000);
+    return () => clearInterval(t);
+  }, [stage, refresh]);
 
   const handleCrmUpdate = async () => {
     if (!crmStatus || !lead) return;

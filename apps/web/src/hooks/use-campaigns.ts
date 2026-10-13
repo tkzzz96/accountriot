@@ -14,6 +14,7 @@ export interface Campaign {
   language: string;
   status: "draft" | "running" | "completed" | "failed" | "paused";
   progress: number;
+  error?: string | null;
   totalLeads: number;
   priorityLeads: number;
   highQualityLeads: number;

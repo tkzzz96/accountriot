@@ -1,4 +1,5 @@
 import { Injectable } from "@nestjs/common";
+import { csvCell } from "../common/util/csv";
 import { PrismaService } from "../prisma/prisma.service";
 
 const DEFAULT_WORKSPACE_ID = "default-workspace";
@@ -10,7 +11,7 @@ export class ExportService {
   async getLeads(workspaceId = DEFAULT_WORKSPACE_ID, campaignId?: string) {
     return this.prisma.lead.findMany({
       where: { workspaceId, ...(campaignId && { campaignId }) },
-      orderBy: [{ priority: "asc" }, { score: "desc" }],
+      orderBy: [{ score: "desc" }, { createdAt: "desc" }],
       include: { campaign: { select: { name: true } } },
     });
   }
@@ -22,11 +23,6 @@ export class ExportService {
       "Site Status", "Site Evidence", "WhatsApp", "Email", "Contact Source", "Contact Type",
       "Budget Score", "Budget Label", "Pipeline Stage", "Draft Channel", "Draft", "References",
     ];
-    const escape = (v: unknown) => {
-      const s = v == null ? "" : String(v);
-      return s.includes(",") || s.includes('"') || s.includes("\n")
-        ? `"${s.replace(/"/g, '""')}"` : s;
-    };
     const rows = leads.map((l) => [
       l.name, l.address, l.phone, l.website, l.rating, l.reviewCount, l.score, l.priority,
       l.crmStatus, l.campaign?.name ?? "", l.hasWebsite ? "Yes" : "No",
@@ -36,7 +32,7 @@ export class ExportService {
       (l.marketingContent as { channel?: string } | null)?.channel ?? "",
       (l.marketingContent as { text?: string } | null)?.text ?? "",
       ((l.references as Array<{ url: string }> | null) ?? []).map((r) => r.url).join(" | "),
-    ].map(escape).join(","));
+    ].map(csvCell).join(","));
     return [headers.join(","), ...rows].join("\n");
   }
 

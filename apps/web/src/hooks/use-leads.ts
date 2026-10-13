@@ -22,7 +22,7 @@ export interface Lead {
   campaignId: string;
   campaign?: { id: string; name: string };
   siteStatus?: "NONE" | "SOCIAL_ONLY" | "FREE_BUILDER" | "DEAD" | "HAS_SITE" | "UNKNOWN";
-  siteEvidence?: { url?: string | null; httpStatus?: number | null; dnsOk?: boolean | null; reason?: string } | null;
+  siteEvidence?: { url?: string | null; httpStatus?: number | null; dnsOk?: boolean | null; reason?: string; code?: string } | null;
   whatsapp?: string | null;
   email?: string | null;
   contactSource?: string | null;
@@ -70,6 +70,9 @@ interface LeadFilter {
   q?: string;
   priority?: string;
   status?: string;
+  siteStatus?: string;
+  stage?: string;
+  minScore?: number;
   page?: number;
   limit?: number;
 }
@@ -80,7 +83,7 @@ export function useLeads(filter: LeadFilter = {}) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const { campaignId, q, priority, status, page = 1, limit = 50 } = filter;
+  const { campaignId, q, priority, status, siteStatus, stage, minScore, page = 1, limit = 50 } = filter;
 
   const refresh = useCallback(async () => {
     try {
@@ -89,6 +92,9 @@ export function useLeads(filter: LeadFilter = {}) {
       if (q) params.set("q", q);
       if (priority) params.set("priority", priority);
       if (status) params.set("status", status);
+      if (siteStatus) params.set("siteStatus", siteStatus);
+      if (stage) params.set("stage", stage);
+      if (minScore != null) params.set("minScore", String(minScore));
       params.set("page", String(page));
       params.set("limit", String(limit));
 
@@ -101,7 +107,7 @@ export function useLeads(filter: LeadFilter = {}) {
     } finally {
       setLoading(false);
     }
-  }, [campaignId, q, priority, status, page, limit]);
+  }, [campaignId, q, priority, status, siteStatus, stage, minScore, page, limit]);
 
   useEffect(() => { setLoading(true); refresh(); }, [refresh]);
   return { leads, total, loading, error, refresh };

@@ -79,21 +79,21 @@ export function CreateCampaignForm() {
         <CardContent className="space-y-5">
           <div className="space-y-2">
             <Label htmlFor="name">Nome da campanha</Label>
-            <Input id="name" placeholder="ex.: Barbearias Curitiba" value={form.name} onChange={set("name")} required />
+            <Input id="name" maxLength={120} placeholder="ex.: Barbearias Curitiba" value={form.name} onChange={set("name")} required />
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div className="space-y-2">
               <Label htmlFor="niche">Nicho</Label>
-              <Input id="niche" data-testid="niche-input" placeholder="ex.: barbearia" value={form.niche} onChange={set("niche")} required />
+              <Input id="niche" data-testid="niche-input" minLength={2} maxLength={80} placeholder="ex.: barbearia" value={form.niche} onChange={set("niche")} required />
             </div>
             <div className="space-y-2">
               <Label htmlFor="city">Cidade</Label>
-              <Input id="city" data-testid="city-input" placeholder="ex.: Curitiba" value={form.city} onChange={set("city")} required />
+              <Input id="city" data-testid="city-input" minLength={2} maxLength={80} placeholder="ex.: Curitiba" value={form.city} onChange={set("city")} required />
             </div>
             <div className="space-y-2">
               <Label htmlFor="country">País</Label>
-              <Input id="country" placeholder="ex.: Brasil" value={form.country} onChange={set("country")} required />
+              <Input id="country" minLength={2} maxLength={80} placeholder="ex.: Brasil" value={form.country} onChange={set("country")} required />
             </div>
           </div>
 
@@ -115,7 +115,7 @@ export function CreateCampaignForm() {
             </div>
             <div className="space-y-2">
               <Label htmlFor="budget">Orçamento alvo (US$)</Label>
-              <Input id="budget" type="number" min={0} value={form.budgetUsd} onChange={set("budgetUsd")} />
+              <Input id="budget" type="number" min={0} max={1000000} value={form.budgetUsd} onChange={set("budgetUsd")} />
             </div>
             <div className="space-y-2">
               <Label>Máx. de leads</Label>
@@ -166,24 +166,24 @@ export function CreateCampaignForm() {
 
           <div className="space-y-2">
             <Label htmlFor="service">Seu serviço (usado nos rascunhos)</Label>
-            <Textarea id="service" rows={2} className="resize-none" value={form.service} onChange={set("service")} required />
+            <Textarea id="service" rows={2} maxLength={200} className="resize-none" value={form.service} onChange={set("service")} required />
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div className="space-y-2">
               <Label htmlFor="price">Preço-âncora</Label>
-              <Input id="price" placeholder="ex.: a partir de R$ 1.500" value={form.priceAnchor} onChange={set("priceAnchor")} />
+              <Input id="price" maxLength={200} placeholder="ex.: a partir de R$ 1.500" value={form.priceAnchor} onChange={set("priceAnchor")} />
             </div>
             <div className="space-y-2">
               <Label htmlFor="deadline">Prazo</Label>
-              <Input id="deadline" placeholder="ex.: 7 dias" value={form.deadline} onChange={set("deadline")} />
+              <Input id="deadline" maxLength={200} placeholder="ex.: 7 dias" value={form.deadline} onChange={set("deadline")} />
             </div>
             <div className="space-y-2">
               <Label htmlFor="seller">Seu nome</Label>
-              <Input id="seller" placeholder="ex.: Ryan" value={form.sellerName} onChange={set("sellerName")} />
+              <Input id="seller" maxLength={200} placeholder="ex.: Ryan" value={form.sellerName} onChange={set("sellerName")} />
             </div>
           </div>
-          {error && <p className="text-sm text-destructive">{error}</p>}
+          {error && <p className="text-sm text-destructive" role="alert" aria-live="assertive">{error}</p>}
         </CardContent>
         <CardFooter className="gap-3">
           <Button type="button" variant="outline" onClick={() => router.back()}>Cancelar</Button>

@@ -1,8 +1,9 @@
-import { createParamDecorator, ExecutionContext } from "@nestjs/common";
+import { createParamDecorator, ExecutionContext, UnauthorizedException } from "@nestjs/common";
 
-export const WorkspaceId = createParamDecorator(
-  (_: unknown, ctx: ExecutionContext): string => {
-    const req = ctx.switchToHttp().getRequest();
-    return req.user?.workspaceId ?? "default-workspace";
-  },
-);
+/** Workspace of the authenticated caller. Never falls back to a shared workspace (tenant isolation). */
+export const WorkspaceId = createParamDecorator((_: unknown, ctx: ExecutionContext): string => {
+  const req = ctx.switchToHttp().getRequest();
+  const id: string | undefined = req.user?.workspaceId;
+  if (!id) throw new UnauthorizedException("No workspace in session");
+  return id;
+});

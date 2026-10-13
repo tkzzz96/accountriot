@@ -56,7 +56,14 @@ if [ ! -f apps/api/.env ]; then
   cp apps/api/.env packages/database/.env
 fi
 [ -f packages/database/.env ] || cp apps/api/.env packages/database/.env
-set -a; . apps/api/.env; set +a
+# Parse KEY=VALUE lines without executing them: `source` would run $(...) or break on '&', '$', spaces.
+while IFS= read -r line || [ -n "$line" ]; do
+  case "$line" in ''|\#*) continue ;; esac
+  key="${line%%=*}"; val="${line#*=}"
+  [[ "$key" =~ ^[A-Za-z_][A-Za-z0-9_]*$ ]] || continue
+  val="${val%\"}"; val="${val#\"}"
+  [ -z "${!key+x}" ] && export "$key=$val"   # real environment variables win over the file
+done < apps/api/.env
 
 # 2) Postgres + Redis
 say "verificando Postgres (5432) e Redis (6379)"

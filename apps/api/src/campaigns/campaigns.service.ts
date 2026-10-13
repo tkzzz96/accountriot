@@ -1,4 +1,4 @@
-import { BadRequestException, Injectable, NotFoundException } from "@nestjs/common";
+import { Injectable, NotFoundException } from "@nestjs/common";
 import { PrismaService } from "../prisma/prisma.service";
 import { CreateCampaignDto } from "./dto/create-campaign.dto";
 import { UpdateCampaignDto } from "./dto/update-campaign.dto";
@@ -32,24 +32,20 @@ export class CampaignsService {
       create: { id: workspaceId, name: "Default Workspace", slug: "default" },
       update: {},
     });
-    const { filter, ...rest } = dto;
-    const industry = rest.industry ?? filter?.niche;
-    const location = rest.location ?? (filter ? [filter.city, filter.country].filter(Boolean).join(", ") : undefined);
-    const yourService = rest.yourService ?? filter?.service ?? "Website development";
-    if (!industry || !location) {
-      throw new BadRequestException("Provide either filter (niche/city/country) or industry + location");
-    }
+    const { filter, name, description } = dto;
     return this.prisma.campaign.create({
       data: {
-        ...rest,
-        industry,
-        location,
-        yourService,
-        searchQueries: rest.searchQueries ?? (filter ? [filter.niche] : [industry]),
-        maxResults: filter?.maxResults ?? rest.maxResults ?? 20,
-        contentStyle: rest.contentStyle ?? "balanced",
-        language: filter?.language ?? rest.language ?? "indonesian",
-        filter: filter ? (JSON.parse(JSON.stringify(filter)) as object) : undefined,
+        name,
+        description,
+        // Legacy columns are kept (NOT NULL in the schema) and derived from the filter.
+        industry: filter.niche,
+        location: [filter.city, filter.country].filter(Boolean).join(", "),
+        yourService: filter.service ?? "Website development",
+        searchQueries: [filter.niche],
+        maxResults: filter.maxResults ?? 50,
+        contentStyle: "balanced",
+        language: filter.language,
+        filter: JSON.parse(JSON.stringify(filter)) as object,
         workspaceId,
       },
     });
@@ -57,10 +53,22 @@ export class CampaignsService {
 
   async update(id: string, dto: UpdateCampaignDto, workspaceId = DEFAULT_WORKSPACE_ID) {
     await this.findOne(id, workspaceId);
-    const { filter, ...rest } = dto;
+    const { filter, name, description } = dto;
     return this.prisma.campaign.update({
       where: { id },
-      data: { ...rest, ...(filter && { filter: JSON.parse(JSON.stringify(filter)) as object }) },
+      data: {
+        ...(name !== undefined && { name }),
+        ...(description !== undefined && { description }),
+        ...(filter && {
+          filter: JSON.parse(JSON.stringify(filter)) as object,
+          industry: filter.niche,
+          location: [filter.city, filter.country].filter(Boolean).join(", "),
+          language: filter.language,
+          maxResults: filter.maxResults ?? 50,
+          searchQueries: [filter.niche],
+          yourService: filter.service ?? "Website development",
+        }),
+      },
     });
   }
 
@@ -76,8 +84,9 @@ export class CampaignsService {
         status,
         ...(progress !== undefined && { progress }),
         ...(error && { error }),
-        ...(status === "running" && { startedAt: new Date() }),
-        ...(status === "completed" && { completedAt: new Date() }),
+        // A fresh run (progress 0) resets timestamps/error; later progress ticks must not touch startedAt.
+        ...(status === "running" && progress === 0 && { startedAt: new Date(), completedAt: null, error: null }),
+        ...(status === "completed" && { completedAt: new Date(), error: null }),
       },
     });
   }

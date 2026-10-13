@@ -21,6 +21,7 @@ export class PinterestProvider implements ReferenceProvider {
     const token = this.config.get<string>("PINTEREST_ACCESS_TOKEN");
     const res = await fetch(`https://api.pinterest.com/v5/search/pins?query=${encodeURIComponent(`${niche} website design`)}&page_size=10`, {
       headers: { Authorization: `Bearer ${token}` },
+      signal: AbortSignal.timeout(15_000),
     });
     if (!res.ok) throw new Error(`Pinterest API HTTP ${res.status}`);
     const json = (await res.json()) as { items?: Array<{ link?: string; title?: string; media?: { images?: Record<string, { url: string }> } }> };

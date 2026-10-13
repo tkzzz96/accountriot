@@ -1,4 +1,4 @@
-import { Controller, Post, Param, HttpCode, HttpStatus, UseGuards } from "@nestjs/common";
+import { BadRequestException, ConflictException, Controller, Post, Param, HttpCode, HttpStatus, UseGuards } from "@nestjs/common";
 import { InjectQueue } from "@nestjs/bullmq";
 import { Queue } from "bullmq";
 import { ApiTags, ApiOperation, ApiBearerAuth } from "@nestjs/swagger";
@@ -25,19 +25,20 @@ export class ScraperController {
     @WorkspaceId() workspaceId: string,
   ) {
     const campaign = await this.campaigns.findOne(id, workspaceId);
+    if (!campaign.filter) {
+      throw new BadRequestException("This campaign has no prospector filter (created before the Prospector upgrade). Create a new campaign.");
+    }
+    const STALE_RUN_MS = 30 * 60 * 1000; // a crashed run must not block restarts forever
+    const stale = !campaign.startedAt || Date.now() - campaign.startedAt.getTime() > STALE_RUN_MS;
+    if (campaign.status === "running" && !stale) throw new ConflictException("Campaign is already running");
+    // Mark as running right away so a double click cannot enqueue the same campaign twice.
+    await this.campaigns.updateStatus(campaign.id, "running", 0);
     const job = await this.scraperQueue.add(
       "scrape",
       {
         campaignId: campaign.id,
         workspaceId: campaign.workspaceId,
-        searchQueries: campaign.searchQueries,
-        industry: campaign.industry,
-        location: campaign.location,
-        maxResults: campaign.maxResults,
-        yourService: campaign.yourService,
-        contentStyle: campaign.contentStyle,
-        language: campaign.language,
-        filter: (campaign.filter as unknown as ScraperJobData["filter"]) ?? null,
+        filter: campaign.filter as unknown as ScraperJobData["filter"],
       },
       {
         attempts: 2,

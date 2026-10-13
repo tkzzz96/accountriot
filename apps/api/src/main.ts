@@ -19,6 +19,8 @@ async function bootstrap() {
     origin: (origin, cb) => cb(null, !origin || origin === configuredOrigin || loopback.test(origin)),
   });
 
+  const docsEnabled = process.env.NODE_ENV !== "production" || process.env.ENABLE_API_DOCS === "true";
+  if (docsEnabled) {
   const config = new DocumentBuilder()
     .setTitle("Prospex API")
     .setDescription("AI-powered GTM automation platform API")
@@ -28,11 +30,12 @@ async function bootstrap() {
 
   const document = SwaggerModule.createDocument(app, config);
   SwaggerModule.setup("api/docs", app, document);
+  }
 
   const port = process.env.PORT || 3001;
   await app.listen(port);
   console.log(`Prospex API running on http://localhost:${port}`);
-  console.log(`Swagger docs: http://localhost:${port}/api/docs`);
+  if (docsEnabled) console.log(`Swagger docs: http://localhost:${port}/api/docs`);
 }
 
 bootstrap();

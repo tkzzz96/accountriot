@@ -48,7 +48,7 @@ export interface Draft {
 
 const hostOf = (u?: string | null): string => {
   try {
-    return u ? new URL(u).hostname.replace(/^www\./, "") : "";
+    return u ? sanitizeField(new URL(u).hostname.replace(/^www\./, ""), 80) : "";
   } catch {
     return "";
   }
@@ -77,17 +77,27 @@ export function pickFact(f: LeadFacts, lang: Lang): string {
   return siteSituation(f, lang);
 }
 
+/** Third-party text goes into LLM prompts: strip control chars/newlines and cap length. */
+export function sanitizeField(v: string | null | undefined, max = 80): string {
+  return (v ?? "")
+    .replace(/[\u0000-\u001f\u007f\u2028\u2029]+/g, " ")
+    .replace(/[<>{}`]/g, "")
+    .replace(/\s+/g, " ")
+    .trim()
+    .slice(0, max);
+}
+
 export function buildContext(f: LeadFacts, o: Offer, lang: Lang): DraftContext {
   return {
-    businessName: f.name,
-    niche: o.niche,
-    city: o.city,
+    businessName: sanitizeField(f.name),
+    niche: sanitizeField(o.niche),
+    city: sanitizeField(o.city),
     fact: pickFact(f, lang),
     siteSituation: siteSituation(f, lang),
-    service: o.service || (lang === "pt-BR" ? "criação de site profissional" : "professional website design"),
-    priceAnchor: o.priceAnchor || "",
-    deadline: o.deadline || "",
-    sellerName: o.sellerName || "",
+    service: sanitizeField(o.service, 200) || (lang === "pt-BR" ? "criação de site profissional" : "professional website design"),
+    priceAnchor: sanitizeField(o.priceAnchor, 100),
+    deadline: sanitizeField(o.deadline, 100),
+    sellerName: sanitizeField(o.sellerName, 60),
   };
 }
 

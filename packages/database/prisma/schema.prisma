@@ -327,6 +327,8 @@ enum PipelineStage {
 // Curated website references per niche (Phase 4)
 model CuratedReference {
   id       String @id @default(cuid())
+  // "" = global starter seed (read-only, shared); otherwise the owning workspace id.
+  workspaceId String @default("")
   niche    String
   language String @default("any")
   url      String
@@ -334,19 +336,20 @@ model CuratedReference {
   title    String
   source   String @default("curated")
 
-  @@unique([niche, url])
+  @@unique([workspaceId, niche, url])
   @@map("curated_references")
 }
 
 // Cache of reference searches per (niche, language)
 model ReferenceCache {
   id        String   @id @default(cuid())
+  workspaceId String @default("")
   niche     String
   language  String
   items     Json
   expiresAt DateTime
   createdAt DateTime @default(now())
 
-  @@unique([niche, language])
+  @@unique([workspaceId, niche, language])
   @@map("reference_cache")
 }

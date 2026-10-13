@@ -1,7 +1,7 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import * as http from "http";
 import { AddressInfo } from "net";
-import { assertTargetAllowed, BlockedAddressError, DnsFailureError, isPublicIp, safeGet } from "./safe-http";
+import { assertTargetAllowed, BlockedAddressError, DnsFailureError, isPublicIp, safeGet, toDnsFailure } from "./safe-http";
 
 describe("isPublicIp", () => {
   const blocked = [
@@ -26,6 +26,8 @@ describe("safeGet", () => {
       if (req.url === "/loop") return void res.writeHead(302, { location: "/loop" }).end();
       if (req.url === "/to-metadata") return void res.writeHead(302, { location: "http://169.254.169.254/latest/meta-data" }).end();
       if (req.url === "/slow") return; // never answers
+      if (req.url === "/drip") { res.writeHead(200, { "content-type": "text/html" }); const t = setInterval(() => res.write("x"), 50); res.on("close", () => clearInterval(t)); return; }
+      if (req.url === "/truncated") { res.writeHead(200, { "content-type": "text/html", "content-length": "1000" }); res.write("<html>partial"); setTimeout(() => res.destroy(), 30); return; }
       res.writeHead(404).end("nope");
     });
     await new Promise<void>((r) => server.listen(0, "127.0.0.1", r));
@@ -78,4 +80,25 @@ describe("safeGet", () => {
   it("reports DNS failure distinctly", async () => {
     await expect(safeGet("http://this-domain-does-not-exist-prospector.invalid/")).rejects.toBeInstanceOf(DnsFailureError);
   });
+
+  it("a slow-drip server cannot exceed the total deadline", async () => {
+    const t0 = Date.now();
+    await expect(safeGet(`${base}/drip`, { allowPrivate: true, timeoutMs: 400, maxBytes: 10_000_000 })).rejects.toThrow();
+    expect(Date.now() - t0).toBeLessThan(1500);
+  });
+  it("a connection reset mid-body is an error, not a 'successful' partial page", async () => {
+    await expect(safeGet(`${base}/truncated`, { allowPrivate: true })).rejects.toThrow(/closed|aborted|socket|reset/i);
+  });
+});
+
+describe("DNS error classification", () => {
+  const e = (code: string, syscall = "getaddrinfo") => Object.assign(new Error(code), { code, syscall }) as NodeJS.ErrnoException;
+  it("ENOTFOUND/ENODATA are authoritative", () => {
+    expect(toDnsFailure(e("ENOTFOUND"))?.authoritative).toBe(true);
+    expect(toDnsFailure(e("ENODATA"))?.authoritative).toBe(true);
+  });
+  it("EAI_AGAIN / SERVFAIL / timeouts are transient resolver problems", () => {
+    for (const c of ["EAI_AGAIN", "ESERVFAIL", "ETIMEOUT"]) expect(toDnsFailure(e(c))?.authoritative, c).toBe(false);
+  });
+  it("non-DNS errors are not mapped", () => expect(toDnsFailure(e("ECONNRESET", "read"))).toBeNull());
 });

@@ -14,8 +14,15 @@ API_PORT=${API_PORT:-3001}; WEB_PORT=${WEB_PORT:-3000}
 say() { printf '\033[1;36m▸ %s\033[0m\n' "$*"; }
 die() { printf '\033[1;31m✗ %s\033[0m\n' "$*" >&2; exit 1; }
 up()  { curl -sf "$1" >/dev/null 2>&1; }
-# Bounded probe (2s) so a firewalled/slow port can never hang the launcher.
-port_open() { timeout 2 bash -c "exec 3<>/dev/tcp/127.0.0.1/$1" 2>/dev/null; }
+# Loopback connect: refused ports fail instantly (no `timeout` binary needed — it is missing on stock macOS).
+port_open() { (exec 3<>"/dev/tcp/127.0.0.1/$1") 2>/dev/null; }
+# Run a command with a time limit when a timeout binary exists (GNU timeout / Homebrew gtimeout), else without.
+with_timeout() {
+  local secs="$1"; shift
+  if command -v timeout >/dev/null 2>&1; then timeout "$secs" "$@"
+  elif command -v gtimeout >/dev/null 2>&1; then gtimeout "$secs" "$@"
+  else "$@"; fi
+}
 IS_WINDOWS=0; case "$(uname -s 2>/dev/null)" in MINGW*|MSYS*|CYGWIN*) IS_WINDOWS=1 ;; esac
 
 # Kill a launched process together with its children (pnpm -> next-server would otherwise be orphaned).
@@ -61,7 +68,10 @@ while IFS= read -r line || [ -n "$line" ]; do
   case "$line" in ''|\#*) continue ;; esac
   key="${line%%=*}"; val="${line#*=}"
   [[ "$key" =~ ^[A-Za-z_][A-Za-z0-9_]*$ ]] || continue
-  val="${val%\"}"; val="${val#\"}"
+  case "$val" in
+    \"*\") val="${val%\"}"; val="${val#\"}" ;;            # "quoted value"
+    *) val="$(printf '%s' "$val" | sed -E 's/[[:space:]]+#.*$//; s/[[:space:]]+$//')" ;;  # strip inline "  # comment"
+  esac
   [ -z "${!key+x}" ] && export "$key=$val"   # real environment variables win over the file
 done < apps/api/.env
 
@@ -71,7 +81,7 @@ need_services=0
 port_open 5432 || need_services=1
 port_open 6379 || need_services=1
 if [ $need_services = 1 ]; then
-  if command -v docker >/dev/null && timeout 20 docker info >/dev/null 2>&1; then
+  if command -v docker >/dev/null && with_timeout 20 docker info >/dev/null 2>&1; then
     say "subindo Postgres + Redis via Docker (a primeira vez baixa as imagens, pode levar alguns minutos)"
     POSTGRES_PASSWORD="${POSTGRES_PASSWORD:-prospex}" \
       docker compose -f infra/docker-compose.local.yml up -d || die "docker compose falhou (veja acima)"

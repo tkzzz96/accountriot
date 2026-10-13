@@ -18,8 +18,9 @@ async function attempt(url: string): Promise<ProbeResult> {
   } catch (err) {
     if (err instanceof BlockedAddressError) return { dnsOk: true, blocked: true, httpStatus: null, error: err.message };
     if (err instanceof DnsFailureError) {
-      // Declare the domain dead only when general DNS works; otherwise we are simply offline.
-      if (!(await connectivityOk())) return { dnsOk: false, offline: true, httpStatus: null, error: err.message };
+      // Only an authoritative "no such domain" can mean DEAD — and only when general DNS works.
+      // Resolver hiccups (EAI_AGAIN, timeouts, SERVFAIL) must never turn a live site into a false "sem site".
+      if (!err.authoritative || !(await connectivityOk())) return { dnsOk: false, offline: true, httpStatus: null, error: err.message };
       return { dnsOk: false, httpStatus: null, error: err.message };
     }
     return { dnsOk: true, httpStatus: null, error: err instanceof Error ? err.message : String(err) };

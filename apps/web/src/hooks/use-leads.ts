@@ -118,9 +118,10 @@ export function useLead(id: string) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const refresh = useCallback(async () => {
+  // `silent` refreshes in the background (polling, after an action) without flashing the loading skeleton.
+  const refresh = useCallback(async (silent = false) => {
     try {
-      setLoading(true);
+      if (!silent) setLoading(true);
       const data = await api.get<Lead>(`/leads/${id}`);
       setLead(data);
       setError(null);

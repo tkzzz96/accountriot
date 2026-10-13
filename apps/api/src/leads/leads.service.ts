@@ -23,8 +23,9 @@ export class LeadsService {
   async findAll(workspaceId = DEFAULT_WORKSPACE_ID, filter: LeadFilter = {}) {
     const { campaignId, q, priority, status, siteStatus, stage, minScore } = filter;
     // Clamp paging input: bounded page size, 1-based page.
-    const limit = Math.min(200, Math.max(1, filter.limit ?? 50));
-    const page = Math.max(1, filter.page ?? 1);
+    const int = (v: number | undefined, fallback: number) => (Number.isFinite(v) ? Math.trunc(v as number) : fallback);
+    const limit = Math.min(200, Math.max(1, int(filter.limit, 50)));
+    const page = Math.max(1, int(filter.page, 1));
     const skip = (page - 1) * limit;
 
     const where = {
@@ -33,7 +34,7 @@ export class LeadsService {
       ...(priority && { priority }),
       ...(status && { crmStatus: status }),
       ...(siteStatus && { siteStatus: siteStatus as never }),
-      ...(stage && { pipelineStage: stage as never }),
+      ...(stage && { pipelineStage: { in: stage.split(",") as never[] } }),
       ...(minScore != null && !Number.isNaN(minScore) && { score: { gte: minScore } }),
       ...(q && { name: { contains: q, mode: "insensitive" as const } }),
     };

@@ -30,7 +30,7 @@ export class LeadsController {
   @ApiQuery({ name: "priority", required: false, enum: ["HIGH", "MEDIUM", "LOW"] })
   @ApiQuery({ name: "status", required: false })
   @ApiQuery({ name: "siteStatus", required: false, enum: ["NONE", "SOCIAL_ONLY", "FREE_BUILDER", "DEAD", "HAS_SITE", "UNKNOWN"] })
-  @ApiQuery({ name: "stage", required: false, enum: ["DISCOVERED", "CLASSIFIED", "ENRICHED", "SCORED", "DRAFTED", "READY", "FAILED"] })
+  @ApiQuery({ name: "stage", required: false, description: "One stage or a comma-separated list, e.g. CLASSIFIED,ENRICHED" })
   @ApiQuery({ name: "minScore", required: false, type: Number })
   @ApiQuery({ name: "page", required: false, type: Number })
   @ApiQuery({ name: "limit", required: false, type: Number })
@@ -49,10 +49,10 @@ export class LeadsController {
     return this.leadsService.findAll(workspaceId, {
       campaignId, q, priority, status,
       siteStatus: SITE_STATUSES.includes(siteStatus as string) ? siteStatus : undefined,
-      stage: STAGES.includes(stage as string) ? stage : undefined,
+      stage: stage && stage.split(",").every((x) => STAGES.includes(x)) ? stage : undefined,
       minScore: minScore ? Number(minScore) : undefined,
-      page: page ? parseInt(page, 10) : 1,
-      limit: limit ? parseInt(limit, 10) : 50,
+      page: page ? Number.parseInt(page, 10) : undefined,
+      limit: limit ? Number.parseInt(limit, 10) : undefined,
     });
   }
 

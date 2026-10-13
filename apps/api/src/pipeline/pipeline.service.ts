@@ -14,7 +14,7 @@ import { budgetSignals } from "../scoring/budget-signals";
 import { Prisma } from "@prisma/client";
 import { InjectQueue } from "@nestjs/bullmq";
 import { Queue } from "bullmq";
-import { LEAD_JOB_OPTS, LeadJobData } from "./pipeline.constants";
+import { leadJobOpts, LeadJobData } from "./pipeline.constants";
 import { ReferencesService } from "../references/references.service";
 import { OutreachService } from "../outreach/outreach.service";
 import { Channel, Lang } from "../outreach/outreach.logic";
@@ -188,7 +188,7 @@ export class PipelineService {
     }
 
     if (lead.pipelineStage === "DRAFTED") {
-      const refs = await this.references.forLead(leadId, filter.niche ?? lead.campaign.industry, filter.language ?? "pt-BR");
+      const refs = await this.references.forLead(lead.workspaceId, leadId, filter.niche ?? lead.campaign.industry, filter.language ?? "pt-BR");
       await this.prisma.lead.update({
         where: { id: leadId },
         data: { references: refs as unknown as Prisma.InputJsonValue, pipelineStage: "READY", pipelineError: null },
@@ -250,7 +250,7 @@ export class PipelineService {
     if (lead.pipelineStage !== "FAILED") throw new BadRequestException("Only FAILED leads can be retried");
     await this.prisma.lead.update({ where: { id: leadId }, data: { pipelineStage: "CLASSIFIED", pipelineError: null } });
     await this.campaigns.updateStatus(lead.campaignId, "running", 60);
-    await this.queue.add("lead", { leadId, campaignId: lead.campaignId }, LEAD_JOB_OPTS);
+    await this.queue.add("lead", { leadId, campaignId: lead.campaignId }, leadJobOpts(leadId));
     return { queued: true };
   }
 

@@ -35,7 +35,9 @@ export class ScraperController {
     if (campaign.status === "running" && !stale) throw new ConflictException("Campaign is already running");
     // Mark as running right away so a double click cannot enqueue the same campaign twice.
     await this.campaigns.updateStatus(campaign.id, "running", 0);
-    const job = await this.scraperQueue.add(
+    let job;
+    try {
+      job = await this.scraperQueue.add(
       "scrape",
       {
         campaignId: campaign.id,
@@ -48,7 +50,12 @@ export class ScraperController {
         removeOnComplete: 100,
         removeOnFail: 50,
       },
-    );
+      );
+    } catch (err) {
+      // Redis down etc.: do not leave the campaign stuck in "running" with no job behind it.
+      await this.campaigns.updateStatus(campaign.id, "failed", undefined, "Could not queue the campaign (is Redis running?)");
+      throw err;
+    }
     return { message: "Campaign queued", campaignId: id, jobId: job.id };
   }
 }

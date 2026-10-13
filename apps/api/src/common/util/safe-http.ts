@@ -19,6 +19,16 @@ export class DnsFailureError extends Error {
     super(message);
     this.name = "DnsFailureError";
   }
+  /** NXDOMAIN-style answers are authoritative; anything else (EAI_AGAIN, timeouts, SERVFAIL) is a resolver problem. */
+  get authoritative(): boolean {
+    return this.code === "ENOTFOUND" || this.code === "ENODATA";
+  }
+}
+
+const DNS_ERROR_CODES = new Set(["ENOTFOUND", "ENODATA", "EAI_AGAIN", "ESERVFAIL", "ETIMEOUT", "EAI_FAIL", "ECONNREFUSED_DNS"]);
+export function toDnsFailure(err: NodeJS.ErrnoException): DnsFailureError | null {
+  const isDns = (err.syscall === "getaddrinfo" || err.syscall === "queryA" || err.syscall === "queryAaaa") && !!err.code;
+  return isDns || (err.code && DNS_ERROR_CODES.has(err.code)) ? new DnsFailureError(err.message, err.code ?? "EAI_AGAIN") : null;
 }
 
 const V4_BLOCKS: Array<[string, number]> = [
@@ -116,44 +126,58 @@ function guardedLookup(allowPrivate: boolean) {
 function once(url: URL, remainingMs: number, maxBytes: number, o: SafeGetOptions): Promise<SafeGetResult & { location?: string }> {
   return new Promise((resolve, reject) => {
     const lib = url.protocol === "https:" ? https : http;
+    let settled = false;
+    const done = (fn: () => void) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(deadlineTimer);
+      fn();
+    };
     const req = lib.request(
       url,
       {
         method: "GET",
         headers: { "User-Agent": "Mozilla/5.0 (compatible; ProspectorBot/1.0)", Accept: "text/html,*/*;q=0.5", ...(o.headers ?? {}) },
         lookup: guardedLookup(Boolean(o.allowPrivate)) as unknown as net.LookupFunction,
-        timeout: remainingMs,
+        timeout: remainingMs, // idle timeout; the hard deadline below bounds slow-drip servers
       },
       (res) => {
         const status = res.statusCode ?? 0;
         const location = res.headers.location;
         if (status >= 300 && status < 400 && location) {
           res.resume();
-          return resolve({ status, finalUrl: url.toString(), body: "", contentType: "", location });
+          return done(() => resolve({ status, finalUrl: url.toString(), body: "", contentType: "", location }));
         }
         const chunks: Buffer[] = [];
         let size = 0;
+        let capped = false;
+        const contentType = String(res.headers["content-type"] ?? "");
         res.on("data", (c: Buffer) => {
           size += c.length;
           if (size > maxBytes) {
             chunks.push(c.subarray(0, c.length - (size - maxBytes)));
-            res.destroy(); // stop downloading: response cap reached
+            capped = true; // deliberate truncation: stop downloading, the prefix is what we want
+            res.destroy();
             return;
           }
           chunks.push(c);
         });
-        const finish = () => resolve({ status, finalUrl: url.toString(), body: Buffer.concat(chunks).toString("utf8"), contentType: String(res.headers["content-type"] ?? "") });
+        const finish = () => done(() => resolve({ status, finalUrl: url.toString(), body: Buffer.concat(chunks).toString("utf8"), contentType }));
         res.on("end", finish);
-        res.on("close", finish);
-        res.on("error", finish);
+        // A close/error without a clean end that we did not cause is a truncated response: do not pass it off as complete.
+        res.on("close", () => (capped || res.complete ? finish() : done(() => reject(new Error("connection closed before the response completed")))));
+        res.on("error", (err) => (capped ? finish() : done(() => reject(err))));
       },
     );
+    const deadlineTimer = setTimeout(() => req.destroy(new Error("timeout")), remainingMs);
     req.on("timeout", () => req.destroy(new Error("timeout")));
-    req.on("error", (err: NodeJS.ErrnoException) => {
-      if (err instanceof BlockedAddressError) return reject(err);
-      if (err.code === "ENOTFOUND" || err.code === "ENODATA") return reject(new DnsFailureError(err.message, err.code));
-      reject(err);
-    });
+    req.on("error", (err: NodeJS.ErrnoException) =>
+      done(() => {
+        if (err instanceof BlockedAddressError) return reject(err);
+        const dnsErr = toDnsFailure(err);
+        reject(dnsErr ?? err);
+      }),
+    );
     req.end();
   });
 }

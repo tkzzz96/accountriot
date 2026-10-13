@@ -44,6 +44,18 @@ const CALLING_CODES: Record<string, string> = {
   angola: "244", mozambique: "258", moçambique: "258", "cabo verde": "238", "united arab emirates": "971", uae: "971",
 };
 
+const PT_COUNTRY_NAMES: Record<string, string> = {
+  "reino unido": "44", franca: "33", italia: "39", japao: "81", suica: "41", holanda: "31", "paises baixos": "31", belgica: "32",
+  irlanda: "353", suecia: "46", noruega: "47", dinamarca: "45", polonia: "48", "nova zelandia": "64", "africa do sul": "27",
+  "emirados arabes unidos": "971", uruguai: "598", paraguai: "595", colombia: "57", canada: "1", australia: "61", alemanha: "49",
+  "estados unidos da america": "1", china: "86", "coreia do sul": "82", turquia: "90", russia: "7", ucrania: "380", grecia: "30",
+  "republica tcheca": "420", hungria: "36", romenia: "40", israel: "972", egito: "20", marrocos: "212", nigeria: "234", quenia: "254",
+};
+const NORMALIZED_CODES: Record<string, string> = Object.fromEntries([
+  ...Object.entries(CALLING_CODES).map(([k, v]) => [normalizeText(k), v]),
+  ...Object.entries(PT_COUNTRY_NAMES),
+]);
+
 export function countryCallingCode(country: string | null | undefined): string {
-  return CALLING_CODES[(country ?? "").trim().toLowerCase()] ?? ""; // unknown: never guess a country
+  return NORMALIZED_CODES[normalizeText(country)] ?? ""; // accent/case-insensitive; unknown: never guess a country
 }

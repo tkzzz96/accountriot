@@ -4,7 +4,7 @@ import { Job, Queue } from "bullmq";
 import { CampaignsService } from "../campaigns/campaigns.service";
 import { CampaignFilter } from "../campaigns/dto/campaign-filter.dto";
 import { PipelineService } from "../pipeline/pipeline.service";
-import { LEAD_JOB_OPTS, LeadJobData } from "../pipeline/pipeline.constants";
+import { leadJobOpts, LeadJobData } from "../pipeline/pipeline.constants";
 
 export interface ScraperJobData {
   campaignId: string;
@@ -40,7 +40,7 @@ export class ScraperProcessor extends WorkerHost {
         await this.pipeline.finalizeCampaignIfDone(campaignId);
         return;
       }
-      await this.pipelineQueue.addBulk(pending.map((leadId) => ({ name: "lead", data: { leadId, campaignId }, opts: LEAD_JOB_OPTS })));
+      await this.pipelineQueue.addBulk(pending.map((leadId) => ({ name: "lead", data: { leadId, campaignId }, opts: leadJobOpts(leadId) })));
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
       this.logger.error(`Campaign ${campaignId} failed: ${message}`);

@@ -27,8 +27,8 @@ export class ReferencesService implements OnModuleInit {
     try {
       for (const s of CURATED_SEED) {
         await this.prisma.curatedReference.upsert({
-          where: { niche_url: { niche: s.niche, url: s.url } },
-          create: { niche: s.niche, language: "any", url: s.url, title: s.title, thumbUrl: thumbFor(s.url, this.thumbTemplate), source: "curated" },
+          where: { workspaceId_niche_url: { workspaceId: "", niche: s.niche, url: s.url } },
+          create: { workspaceId: "", niche: s.niche, language: "any", url: s.url, title: s.title, thumbUrl: thumbFor(s.url, this.thumbTemplate), source: "curated" },
           update: {},
         });
       }
@@ -37,32 +37,32 @@ export class ReferencesService implements OnModuleInit {
     }
   }
 
-  async addCurated(input: { niche: string; url: string; title: string; language?: string; thumbUrl?: string }) {
+  async addCurated(workspaceId: string, input: { niche: string; url: string; title: string; language?: string; thumbUrl?: string }) {
     const niche = canonicalNiche(input.niche);
     const row = await this.prisma.curatedReference.upsert({
-      where: { niche_url: { niche, url: input.url } },
-      create: { niche, url: input.url, title: input.title, language: input.language ?? "any", thumbUrl: input.thumbUrl ?? thumbFor(input.url, this.thumbTemplate) },
+      where: { workspaceId_niche_url: { workspaceId, niche, url: input.url } },
+      create: { workspaceId, niche, url: input.url, title: input.title, language: input.language ?? "any", thumbUrl: input.thumbUrl ?? thumbFor(input.url, this.thumbTemplate) },
       update: { title: input.title },
     });
-    await this.prisma.referenceCache.deleteMany({ where: { niche } });
+    await this.prisma.referenceCache.deleteMany({ where: { workspaceId, niche } }); // other workspaces are unaffected
     return row;
   }
 
-  list(niche?: string) {
-    return this.prisma.curatedReference.findMany({ where: niche ? { niche: canonicalNiche(niche) } : {}, orderBy: [{ niche: "asc" }, { url: "asc" }] });
+  list(workspaceId: string, niche?: string) {
+    return this.prisma.curatedReference.findMany({ where: { workspaceId: { in: ["", workspaceId] }, ...(niche && { niche: canonicalNiche(niche) }) }, orderBy: [{ niche: "asc" }, { url: "asc" }] });
   }
 
   /** Candidate pool for (niche, language) — cached with TTL so a second campaign in the same niche does not search again. */
-  async candidates(rawNiche: string, language: string): Promise<RefItem[]> {
+  async candidates(workspaceId: string, rawNiche: string, language: string): Promise<RefItem[]> {
     const niche = canonicalNiche(rawNiche);
-    const cached = await this.prisma.referenceCache.findUnique({ where: { niche_language: { niche, language } } });
+    const cached = await this.prisma.referenceCache.findUnique({ where: { workspaceId_niche_language: { workspaceId, niche, language } } });
     if (cached && cached.expiresAt > new Date()) {
-      this.logger.log(`references cache HIT niche=${niche} lang=${language}`);
+      this.logger.log(`references cache HIT ws=${workspaceId || "global"} niche=${niche} lang=${language}`);
       return cached.items as unknown as RefItem[];
     }
-    this.logger.log(`references cache MISS niche=${niche} lang=${language} — searching providers`);
-    let items = await this.curated.find(niche, language);
-    if (items.length < 3) items = [...items, ...(await this.curated.find("generic", language))];
+    this.logger.log(`references cache MISS ws=${workspaceId || "global"} niche=${niche} lang=${language} — searching providers`);
+    let items = await this.curated.find(niche, language, workspaceId);
+    if (items.length < 3) items = [...items, ...(await this.curated.find("generic", language, workspaceId))];
     if (this.pinterest.enabled) {
       try {
         items = [...items, ...(await this.pinterest.find(niche))];
@@ -73,15 +73,15 @@ export class ReferencesService implements OnModuleInit {
     const ttlDays = Number(this.config.get<string>("REFERENCE_TTL_DAYS", "30"));
     const expiresAt = new Date(Date.now() + ttlDays * 86400_000);
     await this.prisma.referenceCache.upsert({
-      where: { niche_language: { niche, language } },
-      create: { niche, language, items: items as unknown as Prisma.InputJsonValue, expiresAt },
+      where: { workspaceId_niche_language: { workspaceId, niche, language } },
+      create: { workspaceId, niche, language, items: items as unknown as Prisma.InputJsonValue, expiresAt },
       update: { items: items as unknown as Prisma.InputJsonValue, expiresAt },
     });
     return items;
   }
 
   /** Three diverse references for one lead. */
-  async forLead(leadId: string, niche: string, language: string): Promise<RefItem[]> {
-    return pickDiverse(await this.candidates(niche, language), leadId, 3);
+  async forLead(workspaceId: string, leadId: string, niche: string, language: string): Promise<RefItem[]> {
+    return pickDiverse(await this.candidates(workspaceId, niche, language), leadId, 3);
   }
 }

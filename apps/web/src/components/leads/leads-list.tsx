@@ -23,7 +23,7 @@ export function LeadsList() {
     priority: priority !== "all" ? priority : undefined,
     status: crmStatus !== "all" ? crmStatus : undefined,
     siteStatus: siteStatus !== "all" ? siteStatus : undefined,
-    stage: stage !== "all" ? stage : undefined,
+    stage: stage !== "all" ? (stage === "ACTIVE" ? "DISCOVERED,CLASSIFIED,ENRICHED,SCORED,DRAFTED" : stage) : undefined,
     minScore: minScore !== "all" ? Number(minScore) : undefined,
   });
 
@@ -81,7 +81,7 @@ export function LeadsList() {
             <SelectItem value="all">Todas as etapas</SelectItem>
             <SelectItem value="READY">Prontos</SelectItem>
             <SelectItem value="FAILED">Com falha</SelectItem>
-            <SelectItem value="CLASSIFIED">Em processamento</SelectItem>
+            <SelectItem value="ACTIVE">Em processamento</SelectItem>
           </SelectContent>
         </Select>
         <Select value={crmStatus} onValueChange={setCrmStatus}>

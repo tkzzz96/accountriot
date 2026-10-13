@@ -31,7 +31,7 @@ export function LeadDetail({ id }: { id: string }) {
   const stage = lead?.pipelineStage;
   useEffect(() => {
     if (!stage || stage === "READY" || stage === "FAILED") return;
-    const t = setInterval(() => { void refresh(); }, 3000);
+    const t = setInterval(() => { void refresh(true); }, 3000);
     return () => clearInterval(t);
   }, [stage, refresh]);
 
@@ -118,7 +118,7 @@ export function LeadDetail({ id }: { id: string }) {
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
         <motion.div variants={item} className="lg:col-span-2 space-y-4">
-          <ProspectorCard lead={lead} onChange={refresh} />
+          <ProspectorCard lead={lead} onChange={() => { void refresh(true); }} />
           {/* Contact Info */}
           <Card>
             <CardHeader className="pb-3">

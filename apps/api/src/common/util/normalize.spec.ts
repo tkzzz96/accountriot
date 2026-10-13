@@ -18,6 +18,11 @@ describe("dedupe", () => {
 
 describe("unknown country is never guessed", () => {
   it("known countries", () => { expect(countryCallingCode("Brasil")).toBe("55"); expect(countryCallingCode("Portugal")).toBe("351"); expect(countryCallingCode("Peru")).toBe("51"); });
+  it("accents and case do not matter (pt-BR names)", () => {
+    for (const [n, c] of [["Canadá", "1"], ["Colômbia", "57"], ["Austrália", "61"], ["Japão", "81"], ["Suíça", "41"], ["FRANÇA", "33"], ["méxico", "52"], ["  Brasil ", "55"]]) {
+      expect(countryCallingCode(n), n).toBe(c);
+    }
+  });
   it("unknown country -> empty code", () => expect(countryCallingCode("Atlantis")).toBe(""));
   it("local number without code and unknown country -> null (not +55)", () => expect(normalizePhone("(11) 99999-8888", "")).toBeNull());
   it("number with + still works for unknown country", () => expect(normalizePhone("+351 912 345 678", "")).toBe("+351912345678"));

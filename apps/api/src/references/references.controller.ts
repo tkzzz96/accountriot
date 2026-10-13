@@ -23,15 +23,15 @@ export class ReferencesController {
   constructor(private refs: ReferencesService, private prisma: PrismaService) {}
 
   @Get()
-  list(@Query("niche") niche?: string) {
-    return this.refs.list(niche);
+  list(@WorkspaceId() workspaceId: string, @Query("niche") niche?: string) {
+    return this.refs.list(workspaceId, niche);
   }
 
   @Post()
   async add(@Body() dto: AddReferenceDto, @CurrentUserId() userId: string, @WorkspaceId() workspaceId: string) {
-    // The curated list is shared by every workspace: only owners/admins may change it.
+    // Edits only affect this workspace's own references (the global starter seed is read-only).
     const m = await this.prisma.workspaceMember.findUnique({ where: { workspaceId_userId: { workspaceId, userId } } });
     if (!m || !["owner", "admin"].includes(m.role)) throw new ForbiddenException("Only workspace owners and admins can edit references");
-    return this.refs.addCurated(dto);
+    return this.refs.addCurated(workspaceId, dto);
   }
 }

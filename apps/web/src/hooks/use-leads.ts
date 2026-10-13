@@ -126,7 +126,7 @@ export function useLead(id: string) {
       setLead(data);
       setError(null);
     } catch (e) {
-      setError(String(e));
+      if (!silent) setError(String(e)); // a failed background poll keeps showing the last good data
     } finally {
       setLoading(false);
     }

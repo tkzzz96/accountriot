@@ -48,7 +48,7 @@ export class PoliteFetcher {
     const rules = await this.rulesFor(u.origin);
     if (!isAllowed(rules, u.pathname + u.search)) return null;
     const delay = Math.max(this.minDelayMs, (rules.crawlDelaySec ?? 0) * 1000);
-    const res = await this.serialize(u.host, delay, () => safeGet(url, { timeoutMs: this.timeoutMs, maxBytes: 500_000 }));
+    const res = await this.serialize(u.host, delay, () => safeGet(url, { timeoutMs: this.timeoutMs, maxBytes: 500_000, allowPartial: true }));
     const textual = res.contentType === "" || /html|text/i.test(res.contentType);
     return { html: textual ? res.body : "", status: res.status };
   }

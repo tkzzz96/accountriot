@@ -19,7 +19,7 @@ describe("dedupe", () => {
 describe("unknown country is never guessed", () => {
   it("known countries", () => { expect(countryCallingCode("Brasil")).toBe("55"); expect(countryCallingCode("Portugal")).toBe("351"); expect(countryCallingCode("Peru")).toBe("51"); });
   it("accents and case do not matter (pt-BR names)", () => {
-    for (const [n, c] of [["Canadá", "1"], ["Colômbia", "57"], ["Austrália", "61"], ["Japão", "81"], ["Suíça", "41"], ["FRANÇA", "33"], ["méxico", "52"], ["  Brasil ", "55"]]) {
+    for (const [n, c] of [["Canadá", "1"], ["Colômbia", "57"], ["Austrália", "61"], ["Japão", "81"], ["Suíça", "41"], ["FRANÇA", "33"], ["méxico", "52"], ["  Brasil ", "55"], ["Inglaterra", "44"], ["Moçambique", "258"], ["Países Baixos", "31"]]) {
       expect(countryCallingCode(n), n).toBe(c);
     }
   });

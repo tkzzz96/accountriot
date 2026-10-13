@@ -89,6 +89,20 @@ describe("safeGet", () => {
   it("a connection reset mid-body is an error, not a 'successful' partial page", async () => {
     await expect(safeGet(`${base}/truncated`, { allowPrivate: true })).rejects.toThrow(/closed|aborted|socket|reset/i);
   });
+  it("allowPartial returns what arrived, flagged as truncated (liveness probes)", async () => {
+    const r = await safeGet(`${base}/truncated`, { allowPrivate: true, allowPartial: true });
+    expect(r.status).toBe(200);
+    expect(r.truncated).toBe(true);
+    expect(r.body).toContain("partial");
+  });
+  it("allowPartial also keeps the status when the deadline hits mid-body", async () => {
+    const r = await safeGet(`${base}/drip`, { allowPrivate: true, allowPartial: true, timeoutMs: 300, maxBytes: 10_000_000 });
+    expect(r.status).toBe(200);
+    expect(r.truncated).toBe(true);
+  });
+  it("allowPartial does not mask a request that never got headers", async () => {
+    await expect(safeGet(`${base}/slow`, { allowPrivate: true, allowPartial: true, timeoutMs: 300 })).rejects.toThrow();
+  });
 });
 
 describe("DNS error classification", () => {

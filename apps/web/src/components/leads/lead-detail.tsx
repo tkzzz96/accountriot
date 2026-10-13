@@ -40,7 +40,7 @@ export function LeadDetail({ id }: { id: string }) {
     setSaving(true);
     try {
       await api.patch(`/leads/${id}/crm`, { crmStatus });
-      await refresh();
+      await refresh(true);
     } catch (e) {
       console.error("CRM update failed:", e);
     } finally {

@@ -343,13 +343,12 @@ model CuratedReference {
 // Cache of reference searches per (niche, language)
 model ReferenceCache {
   id        String   @id @default(cuid())
-  workspaceId String @default("")
   niche     String
   language  String
   items     Json
   expiresAt DateTime
   createdAt DateTime @default(now())
 
-  @@unique([workspaceId, niche, language])
+  @@unique([niche, language])
   @@map("reference_cache")
 }

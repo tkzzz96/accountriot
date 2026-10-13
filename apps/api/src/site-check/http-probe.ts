@@ -13,7 +13,7 @@ async function connectivityOk(): Promise<boolean> {
 
 async function attempt(url: string): Promise<ProbeResult> {
   try {
-    const r = await safeGet(url, { timeoutMs: 8000, maxBytes: 4000 });
+    const r = await safeGet(url, { timeoutMs: 8000, maxBytes: 4000, allowPartial: true });
     return { dnsOk: true, httpStatus: r.status, finalUrl: r.finalUrl, bodySnippet: r.body };
   } catch (err) {
     if (err instanceof BlockedAddressError) return { dnsOk: true, blocked: true, httpStatus: null, error: err.message };

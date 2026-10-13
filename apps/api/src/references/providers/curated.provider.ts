@@ -13,6 +13,10 @@ export class CuratedProvider implements ReferenceProvider {
       where: { niche, language: { in: ["any", language] }, workspaceId: { in: ["", workspaceId] } },
       orderBy: [{ workspaceId: "desc" }, { url: "asc" }], // the workspace's own picks first
     });
-    return rows.map((r) => ({ url: r.url, thumbUrl: r.thumbUrl, source: r.source, niche: r.niche, title: r.title }));
+    // A workspace may re-add a seeded URL: keep one entry per URL (the workspace's own row sorts first).
+    const seen = new Set<string>();
+    return rows
+      .filter((r) => (seen.has(r.url) ? false : (seen.add(r.url), true)))
+      .map((r) => ({ url: r.url, thumbUrl: r.thumbUrl, source: r.source, niche: r.niche, title: r.title }));
   }
 }

@@ -14,8 +14,6 @@ API_PORT=${API_PORT:-3001}; WEB_PORT=${WEB_PORT:-3000}
 say() { printf '\033[1;36m▸ %s\033[0m\n' "$*"; }
 die() { printf '\033[1;31m✗ %s\033[0m\n' "$*" >&2; exit 1; }
 up()  { curl -sf "$1" >/dev/null 2>&1; }
-# Loopback connect: refused ports fail instantly (no `timeout` binary needed — it is missing on stock macOS).
-port_open() { (exec 3<>"/dev/tcp/127.0.0.1/$1") 2>/dev/null; }
 # Run a command with a time limit when a timeout binary exists (GNU timeout / Homebrew gtimeout), else without.
 with_timeout() {
   local secs="$1"; shift
@@ -23,6 +21,8 @@ with_timeout() {
   elif command -v gtimeout >/dev/null 2>&1; then gtimeout "$secs" "$@"
   else "$@"; fi
 }
+# Loopback connect, bounded to 2s where possible (refused ports fail instantly anyway; stock macOS has no `timeout`).
+port_open() { with_timeout 2 bash -c "exec 3<>/dev/tcp/127.0.0.1/$1" 2>/dev/null; }
 IS_WINDOWS=0; case "$(uname -s 2>/dev/null)" in MINGW*|MSYS*|CYGWIN*) IS_WINDOWS=1 ;; esac
 
 # Kill a launched process together with its children (pnpm -> next-server would otherwise be orphaned).
@@ -68,10 +68,9 @@ while IFS= read -r line || [ -n "$line" ]; do
   case "$line" in ''|\#*) continue ;; esac
   key="${line%%=*}"; val="${line#*=}"
   [[ "$key" =~ ^[A-Za-z_][A-Za-z0-9_]*$ ]] || continue
-  case "$val" in
-    \"*\") val="${val%\"}"; val="${val#\"}" ;;            # "quoted value"
-    *) val="$(printf '%s' "$val" | sed -E 's/[[:space:]]+#.*$//; s/[[:space:]]+$//')" ;;  # strip inline "  # comment"
-  esac
+  if [[ "$val" =~ ^\"([^\"]*)\" ]]; then val="${BASH_REMATCH[1]}"            # "quoted value" (a trailing comment is ignored)
+  elif [[ "$val" =~ ^\'([^\']*)\' ]]; then val="${BASH_REMATCH[1]}"          # 'quoted value'
+  else val="$(printf '%s' "$val" | sed -E 's/[[:space:]]+#.*$//; s/[[:space:]]+$//')"; fi   # bare value: strip "  # comment"
   [ -z "${!key+x}" ] && export "$key=$val"   # real environment variables win over the file
 done < apps/api/.env
 
@@ -105,8 +104,12 @@ say "prisma generate + migrate"
 pnpm --filter @prospex/database exec prisma generate >/dev/null
 if ! pnpm --filter @prospex/database db:deploy >/tmp/prospector-migrate.log 2>&1; then
   # Database created earlier with `db push` (no migration history): sync the schema instead.
-  pnpm --filter @prospex/database exec prisma db push --skip-generate >/dev/null 2>&1 \
-    || { cat /tmp/prospector-migrate.log; die "falha ao preparar o banco (veja acima)"; }
+  if ! pnpm --filter @prospex/database exec prisma db push --skip-generate >/tmp/prospector-push.log 2>&1; then
+    cat /tmp/prospector-migrate.log /tmp/prospector-push.log
+    die "Não consegui atualizar o banco. Se ele é só de desenvolvimento/teste, você pode aceitar a atualização com:
+   pnpm --filter @prospex/database exec prisma db push --accept-data-loss
+   (ou apague o banco e rode 'pnpm app' de novo para recriá-lo do zero). Em Docker: docker compose -f infra/docker-compose.local.yml down -v"
+  fi
 fi
 if [ $REBUILD = 1 ] || [ ! -f apps/api/dist/main.js ] || [ ! -d apps/web/.next ]; then
   say "build da API e do web (primeira vez leva 1-3 min)"

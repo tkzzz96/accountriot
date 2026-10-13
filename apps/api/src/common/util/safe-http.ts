@@ -25,10 +25,11 @@ export class DnsFailureError extends Error {
   }
 }
 
-const DNS_ERROR_CODES = new Set(["ENOTFOUND", "ENODATA", "EAI_AGAIN", "ESERVFAIL", "ETIMEOUT", "EAI_FAIL", "ECONNREFUSED_DNS"]);
+const DNS_ERROR_CODES = new Set(["ENOTFOUND", "ENODATA", "EAI_AGAIN", "ESERVFAIL", "ETIMEOUT", "EAI_FAIL"]);
 export function toDnsFailure(err: NodeJS.ErrnoException): DnsFailureError | null {
-  const isDns = (err.syscall === "getaddrinfo" || err.syscall === "queryA" || err.syscall === "queryAaaa") && !!err.code;
-  return isDns || (err.code && DNS_ERROR_CODES.has(err.code)) ? new DnsFailureError(err.message, err.code ?? "EAI_AGAIN") : null;
+  const resolverSyscall = err.syscall === "getaddrinfo" || err.syscall === "queryA" || err.syscall === "queryAaaa";
+  // Only resolver errors qualify; a connect/read error with an odd code stays a plain transport error.
+  return resolverSyscall && err.code && DNS_ERROR_CODES.has(err.code) ? new DnsFailureError(err.message, err.code) : null;
 }
 
 const V4_BLOCKS: Array<[string, number]> = [
@@ -97,11 +98,18 @@ export interface SafeGetOptions {
   maxRedirects?: number;
   headers?: Record<string, string>;
   allowedPorts?: number[];
+  /**
+   * Return what was received (flagged `truncated`) when the connection drops or the deadline hits AFTER the
+   * headers arrived. Fine for liveness probes and contact extraction; NOT for robots.txt (a partial file could hide Disallow rules).
+   */
+  allowPartial?: boolean;
   /** Tests only: skip the public-address check. Never wire this to user or config input. */
   allowPrivate?: boolean;
 }
 
 export interface SafeGetResult {
+  /** true when only part of the body was received (see `allowPartial`). */
+  truncated?: boolean;
   status: number;
   finalUrl: string;
   body: string;
@@ -127,6 +135,8 @@ function once(url: URL, remainingMs: number, maxBytes: number, o: SafeGetOptions
   return new Promise((resolve, reject) => {
     const lib = url.protocol === "https:" ? https : http;
     let settled = false;
+    let partial: (() => SafeGetResult) | null = null; // set once headers have arrived
+    const fail = (err: Error) => done(() => (o.allowPartial && partial ? resolve(partial()) : reject(err)));
     const done = (fn: () => void) => {
       if (settled) return;
       settled = true;
@@ -152,6 +162,7 @@ function once(url: URL, remainingMs: number, maxBytes: number, o: SafeGetOptions
         let size = 0;
         let capped = false;
         const contentType = String(res.headers["content-type"] ?? "");
+        partial = () => ({ status, finalUrl: url.toString(), body: Buffer.concat(chunks).toString("utf8"), contentType, truncated: true });
         res.on("data", (c: Buffer) => {
           size += c.length;
           if (size > maxBytes) {
@@ -165,19 +176,18 @@ function once(url: URL, remainingMs: number, maxBytes: number, o: SafeGetOptions
         const finish = () => done(() => resolve({ status, finalUrl: url.toString(), body: Buffer.concat(chunks).toString("utf8"), contentType }));
         res.on("end", finish);
         // A close/error without a clean end that we did not cause is a truncated response: do not pass it off as complete.
-        res.on("close", () => (capped || res.complete ? finish() : done(() => reject(new Error("connection closed before the response completed")))));
-        res.on("error", (err) => (capped ? finish() : done(() => reject(err))));
+        res.on("close", () => (capped || res.complete ? finish() : fail(new Error("connection closed before the response completed"))));
+        res.on("error", (err) => (capped ? finish() : fail(err)));
       },
     );
     const deadlineTimer = setTimeout(() => req.destroy(new Error("timeout")), remainingMs);
     req.on("timeout", () => req.destroy(new Error("timeout")));
-    req.on("error", (err: NodeJS.ErrnoException) =>
-      done(() => {
-        if (err instanceof BlockedAddressError) return reject(err);
-        const dnsErr = toDnsFailure(err);
-        reject(dnsErr ?? err);
-      }),
-    );
+    req.on("error", (err: NodeJS.ErrnoException) => {
+      if (err instanceof BlockedAddressError) return done(() => reject(err));
+      const dnsErr = toDnsFailure(err);
+      if (dnsErr) return done(() => reject(dnsErr));
+      fail(err); // deadline/idle timeout or reset: partial data is acceptable only when the caller allows it
+    });
     req.end();
   });
 }
@@ -205,7 +215,7 @@ export async function safeGet(rawUrl: string, o: SafeGetOptions = {}): Promise<S
       url = new URL(r.location, url);
       continue;
     }
-    return { status: r.status, finalUrl: r.finalUrl, body: r.body, contentType: r.contentType };
+    return { status: r.status, finalUrl: r.finalUrl, body: r.body, contentType: r.contentType, ...(r.truncated && { truncated: true }) };
   }
   throw new Error("too many redirects");
 }

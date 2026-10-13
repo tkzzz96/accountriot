@@ -1,4 +1,4 @@
-import { BadRequestException, ConflictException, Controller, Post, Param, HttpCode, HttpStatus, UseGuards } from "@nestjs/common";
+import { Logger, BadRequestException, ConflictException, Controller, Post, Param, HttpCode, HttpStatus, UseGuards } from "@nestjs/common";
 import { Throttle } from "@nestjs/throttler";
 import { InjectQueue } from "@nestjs/bullmq";
 import { Queue } from "bullmq";
@@ -13,6 +13,8 @@ import { ScraperJobData } from "./scraper.processor";
 @UseGuards(JwtGuard)
 @Controller("scraper")
 export class ScraperController {
+  private readonly logger = new Logger(ScraperController.name);
+
   constructor(
     @InjectQueue("scraper") private readonly scraperQueue: Queue<ScraperJobData>,
     private readonly campaigns: CampaignsService,
@@ -38,22 +40,25 @@ export class ScraperController {
     let job;
     try {
       job = await this.scraperQueue.add(
-      "scrape",
-      {
-        campaignId: campaign.id,
-        workspaceId: campaign.workspaceId,
-        filter: campaign.filter as unknown as ScraperJobData["filter"],
-      },
-      {
-        attempts: 2,
-        backoff: { type: "exponential", delay: 5000 },
-        removeOnComplete: 100,
-        removeOnFail: 50,
-      },
+        "scrape",
+        {
+          campaignId: campaign.id,
+          workspaceId: campaign.workspaceId,
+          filter: campaign.filter as unknown as ScraperJobData["filter"],
+        },
+        {
+          attempts: 2,
+          backoff: { type: "exponential", delay: 5000 },
+          removeOnComplete: 100,
+          removeOnFail: 50,
+        },
       );
     } catch (err) {
       // Redis down etc.: do not leave the campaign stuck in "running" with no job behind it.
-      await this.campaigns.updateStatus(campaign.id, "failed", undefined, "Could not queue the campaign (is Redis running?)");
+      // A failure of this cleanup must not hide the original error.
+      await this.campaigns
+        .updateStatus(campaign.id, "failed", 0, "Could not queue the campaign (is Redis running?)")
+        .catch((e) => this.logger.error(`could not mark campaign ${campaign.id} as failed: ${String(e)}`));
       throw err;
     }
     return { message: "Campaign queued", campaignId: id, jobId: job.id };

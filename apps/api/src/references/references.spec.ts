@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { canonicalNiche } from "./niches";
-import { pickDiverse, mergePool, RefItem, thumbFor, hash } from "./selection";
+import { pickDiverse, mergePool, diffSeed, MIN_REFERENCES, RefItem, thumbFor, hash } from "./selection";
 import { CURATED_SEED } from "./seed";
 
 const item = (url: string, source = "curated"): RefItem => ({ url, thumbUrl: thumbFor(url), source, niche: "x", title: url });
@@ -78,5 +78,38 @@ describe("mergePool", () => {
     expect(pool.filter((r) => r.url === "https://dup.com")).toHaveLength(1);
     expect(pool.find((r) => r.url === "https://dup.com")?.title).toBe("mine");
     expect(pool).toHaveLength(3); // 2 distinct + 1 generic
+  });
+});
+
+describe("diffSeed (boot-time seed sync)", () => {
+  const row = (niche: string, url: string, title = "T", thumbUrl = "th", id = `${niche}-${url}`) => ({ id, niche, url, title, thumbUrl });
+  const want = (niche: string, url: string, title = "T", thumbUrl = "th") => ({ niche, url, title, thumbUrl });
+  it("no drift => nothing to do", () => {
+    const d = diffSeed([row("a", "u1")], [want("a", "u1")]);
+    expect(d).toEqual({ toCreate: [], toUpdate: [], staleIds: [], changedNiches: [] });
+  });
+  it("new entries are created and invalidate only their niche", () => {
+    const d = diffSeed([row("a", "u1")], [want("a", "u1"), want("b", "u2")]);
+    expect(d.toCreate).toEqual([want("b", "u2")]);
+    expect(d.changedNiches).toEqual(["b"]);
+  });
+  it("title or thumbnail drift is updated in place", () => {
+    const d = diffSeed([row("a", "u1", "Old"), row("a", "u2", "T", "oldthumb")], [want("a", "u1", "New"), want("a", "u2")]);
+    expect(d.toUpdate.map((u) => u.title)).toEqual(["New", "T"]);
+    expect(d.toUpdate[1].thumbUrl).toBe("th");
+    expect(d.changedNiches).toEqual(["a"]);
+  });
+  it("entries removed from the code are pruned and their niche invalidated", () => {
+    const d = diffSeed([row("a", "u1"), row("c", "gone", "T", "th", "id-gone")], [want("a", "u1")]);
+    expect(d.staleIds).toEqual(["id-gone"]);
+    expect(d.changedNiches).toEqual(["c"]);
+  });
+  it("same URL under two niches is two distinct rows", () => {
+    const d = diffSeed([row("a", "u1")], [want("a", "u1"), want("b", "u1")]);
+    expect(d.toCreate).toEqual([want("b", "u1")]);
+  });
+  it("MIN_REFERENCES is the single source of truth for the fallback threshold", () => {
+    expect(MIN_REFERENCES).toBe(3);
+    expect(mergePool([], [item("https://a.com"), item("https://b.com")], () => [item("https://g.com")]).length).toBe(3);
   });
 });

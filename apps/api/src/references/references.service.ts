@@ -6,7 +6,7 @@ import { canonicalNiche } from "./niches";
 import { CURATED_SEED } from "./seed";
 import { CuratedProvider } from "./providers/curated.provider";
 import { PinterestProvider } from "./providers/pinterest.provider";
-import { RefItem, mergePool, pickDiverse, thumbFor } from "./selection";
+import { MIN_REFERENCES, RefItem, diffSeed, mergePool, pickDiverse, thumbFor } from "./selection";
 
 @Injectable()
 export class ReferencesService implements OnModuleInit {
@@ -26,23 +26,20 @@ export class ReferencesService implements OnModuleInit {
   async onModuleInit(): Promise<void> {
     try {
       const existing = await this.prisma.curatedReference.findMany({ where: { workspaceId: "" } });
-      const byKey = new Map(existing.map((r) => [`${r.niche}|${r.url}`, r]));
-      const changedNiches = new Set<string>();
-      const toCreate: Prisma.CuratedReferenceCreateManyInput[] = [];
-      for (const seed of CURATED_SEED) {
-        const thumbUrl = thumbFor(seed.url, this.thumbTemplate);
-        const row = byKey.get(`${seed.niche}|${seed.url}`);
-        if (!row) {
-          toCreate.push({ workspaceId: "", niche: seed.niche, language: "any", url: seed.url, title: seed.title, thumbUrl, source: "curated" });
-          changedNiches.add(seed.niche);
-        } else if (row.title !== seed.title || row.thumbUrl !== thumbUrl) {
-          await this.prisma.curatedReference.update({ where: { id: row.id }, data: { title: seed.title, thumbUrl } });
-          changedNiches.add(seed.niche);
-        }
-      }
-      if (toCreate.length) await this.prisma.curatedReference.createMany({ data: toCreate, skipDuplicates: true });
-      // Changed seed rows must not wait for the cache TTL; only the affected niches are invalidated.
-      if (changedNiches.size) await this.prisma.referenceCache.deleteMany({ where: { niche: { in: [...changedNiches] } } });
+      const desired = CURATED_SEED.map((x) => ({ niche: x.niche, url: x.url, title: x.title, thumbUrl: thumbFor(x.url, this.thumbTemplate) }));
+      const d = diffSeed(existing, desired);
+      if (!d.toCreate.length && !d.toUpdate.length && !d.staleIds.length) return;
+      await this.prisma.$transaction([
+        ...d.toUpdate.map((u) => this.prisma.curatedReference.update({ where: { id: u.id }, data: { title: u.title, thumbUrl: u.thumbUrl } })),
+        this.prisma.curatedReference.createMany({
+          data: d.toCreate.map((r) => ({ workspaceId: "", language: "any", source: "curated", ...r })),
+          skipDuplicates: true,
+        }),
+        // Seed entries removed from the code are removed from the shared list too (workspace-owned rows are untouched).
+        this.prisma.curatedReference.deleteMany({ where: { id: { in: d.staleIds }, workspaceId: "" } }),
+        // Changed rows must not wait for the cache TTL; only the affected niches are invalidated.
+        this.prisma.referenceCache.deleteMany({ where: { niche: { in: d.changedNiches } } }),
+      ]);
     } catch (err) {
       this.logger.error(`Could not seed curated references: ${err instanceof Error ? err.message : String(err)}`);
     }
@@ -75,9 +72,9 @@ export class ReferencesService implements OnModuleInit {
       this.sharedPool(niche, language),
     ]);
     const pool = mergePool(own, shared, () => []);
-    if (pool.length >= 3 || niche === "generic") return pool;
-    // Generic fallback: curated rows only (never triggers external provider searches for "generic").
-    const generic = await this.curated.find("generic", language, "");
+    if (pool.length >= MIN_REFERENCES || niche === "generic") return pool;
+    // Generic fallback comes from the cached shared pool (curated only: no external search is ever made for "generic").
+    const generic = await this.sharedPool("generic", language);
     return mergePool(own, shared, () => generic);
   }
 
@@ -89,7 +86,7 @@ export class ReferencesService implements OnModuleInit {
     }
     this.logger.log(`references cache MISS niche=${niche} lang=${language} — searching providers`);
     let items = await this.curated.find(niche, language, "");
-    if (this.pinterest.enabled) {
+    if (this.pinterest.enabled && niche !== "generic") {
       try {
         items = [...items, ...(await this.pinterest.find(niche))];
       } catch (err) {

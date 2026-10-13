@@ -4,6 +4,7 @@ import { ExtractedContacts, extractContacts } from "./contact-extractor";
 import { EmailVerification, verifyEmail } from "./email-verifier";
 import { EnrichmentResult, mergeContacts } from "./enrichment.logic";
 import { PoliteFetcher } from "./polite-fetch";
+import { fetchWithTruncationRetry } from "./fetch-retry";
 import { normalizePhone } from "../common/util/normalize";
 
 const CONTACT_PATHS = ["", "/contato", "/contact", "/fale-conosco", "/sobre"];
@@ -41,17 +42,13 @@ export class EnrichmentService {
         if (fetched >= MAX_PAGES) break;
         const url = new URL(path || base.pathname, base.origin).toString();
         try {
-          let page = await this.fetcher.fetchHtml(url);
-          // A page cut off mid-transfer may be missing its footer (where contacts live): try once more, but keep the
-          // partial page if the retry fails, and record that this lead's contact set may be incomplete.
-          if (page?.truncated) {
-            try {
-              const again = await this.fetcher.fetchHtml(url);
-              if (again && !again.truncated) page = again;
-              else errors.push(`partial page (contacts may be incomplete): ${url}`);
-            } catch (retryErr) {
-              errors.push(`partial page kept; retry failed for ${url}: ${retryErr instanceof Error ? retryErr.message : String(retryErr)}`);
-            }
+          const outcome = await fetchWithTruncationRetry((u) => this.fetcher.fetchHtml(u), url);
+          const page = outcome.page;
+          errors.push(...outcome.notes);
+          if (outcome.hostStruggling && page) {
+            fetched++;
+            if (page.status >= 200 && page.status < 400 && page.html) pageContacts.push({ pageUrl: url, contacts: extractContacts(page.html, input.callingCode) });
+            break; // the host failed twice: do not keep hammering it with the other contact paths
           }
           if (!page) {
             errors.push(`robots.txt disallows ${url}`);

@@ -3,6 +3,7 @@ import { extractContacts, extractEmails, isLikelyMobile } from "./contact-extrac
 import { parseRobots, isAllowed } from "./robots";
 import { verifyEmail } from "./email-verifier";
 import { mergeContacts } from "./enrichment.logic";
+import { fetchWithTruncationRetry, FetchedPage } from "./fetch-retry";
 
 const html = `
 <html><body>
@@ -99,5 +100,46 @@ describe("mergeContacts", () => {
   it("never claims OWNER automatically", () => {
     const r = mergeContacts({ ...base, pageContacts: [] });
     expect(r.ownerContactType).toBe("BUSINESS");
+  });
+});
+
+describe("fetchWithTruncationRetry", () => {
+  const page = (html: string, truncated: boolean): FetchedPage => ({ html, status: 200, truncated });
+  const seq = (...steps: Array<FetchedPage | null | Error>) => {
+    let i = 0;
+    return async () => {
+      const s = steps[i++];
+      if (s instanceof Error) throw s;
+      return s;
+    };
+  };
+  it("complete first page: no retry, no notes", async () => {
+    const r = await fetchWithTruncationRetry(seq(page("ok", false)), "u");
+    expect(r).toEqual({ page: page("ok", false), notes: [], hostStruggling: false });
+  });
+  it("truncated then complete: uses the retry", async () => {
+    const r = await fetchWithTruncationRetry(seq(page("part", true), page("full page", false)), "u");
+    expect(r.page?.html).toBe("full page");
+    expect(r.notes).toEqual([]);
+  });
+  it("truncated twice: keeps the LONGER partial and notes the incompleteness", async () => {
+    const r = await fetchWithTruncationRetry(seq(page("ab", true), page("abcdef", true)), "u");
+    expect(r.page?.html).toBe("abcdef");
+    expect(r.notes[0]).toMatch(/may be incomplete/);
+    expect(r.hostStruggling).toBe(false);
+  });
+  it("retry throws: keeps the first partial and flags the host so the crawl stops", async () => {
+    const r = await fetchWithTruncationRetry(seq(page("partial", true), new Error("timeout")), "u");
+    expect(r.page?.html).toBe("partial");
+    expect(r.hostStruggling).toBe(true);
+    expect(r.notes[0]).toMatch(/retry failed/);
+  });
+  it("retry blocked by robots (null): keeps the first partial", async () => {
+    const r = await fetchWithTruncationRetry(seq(page("partial", true), null), "u");
+    expect(r.page?.html).toBe("partial");
+    expect(r.notes[0]).toMatch(/may be incomplete/);
+  });
+  it("first fetch disallowed by robots: null page, no notes", async () => {
+    expect(await fetchWithTruncationRetry(seq(null), "u")).toEqual({ page: null, notes: [], hostStruggling: false });
   });
 });

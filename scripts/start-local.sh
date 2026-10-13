@@ -14,7 +14,9 @@ API_PORT=${API_PORT:-3001}; WEB_PORT=${WEB_PORT:-3000}
 say() { printf '\033[1;36m▸ %s\033[0m\n' "$*"; }
 die() { printf '\033[1;31m✗ %s\033[0m\n' "$*" >&2; exit 1; }
 up()  { curl -sf "$1" >/dev/null 2>&1; }
-port_open() { (exec 3<>"/dev/tcp/127.0.0.1/$1") 2>/dev/null; }
+# Bounded probe (2s) so a firewalled/slow port can never hang the launcher.
+port_open() { timeout 2 bash -c "exec 3<>/dev/tcp/127.0.0.1/$1" 2>/dev/null; }
+IS_WINDOWS=0; case "$(uname -s 2>/dev/null)" in MINGW*|MSYS*|CYGWIN*) IS_WINDOWS=1 ;; esac
 
 stop_pid() { if [ -f "$RUN/$1.pid" ]; then kill "$(cat "$RUN/$1.pid")" 2>/dev/null || true; rm -f "$RUN/$1.pid"; fi; return 0; }
 
@@ -27,6 +29,7 @@ case "${1:-start}" in
 esac
 REBUILD=0; [ "${1:-}" = "--rebuild" ] && REBUILD=1
 
+say "verificando Node e pnpm"
 command -v node >/dev/null || die "Node.js 20+ é necessário (https://nodejs.org)"
 command -v pnpm >/dev/null || { say "instalando pnpm"; npm install -g pnpm@9 >/dev/null; }
 
@@ -43,25 +46,31 @@ fi
 set -a; . apps/api/.env; set +a
 
 # 2) Postgres + Redis
+say "verificando Postgres (5432) e Redis (6379)"
 need_services=0
 port_open 5432 || need_services=1
 port_open 6379 || need_services=1
 if [ $need_services = 1 ]; then
-  if command -v docker >/dev/null && docker info >/dev/null 2>&1; then
-    say "subindo Postgres + Redis via Docker"
-    POSTGRES_PASSWORD="${POSTGRES_PASSWORD:-prospex}" REDIS_PASSWORD=unused JWT_SECRET=x ENCRYPTION_KEY=x \
-      docker compose -f infra/docker-compose.local.yml up -d
+  if command -v docker >/dev/null && timeout 20 docker info >/dev/null 2>&1; then
+    say "subindo Postgres + Redis via Docker (a primeira vez baixa as imagens, pode levar alguns minutos)"
+    POSTGRES_PASSWORD="${POSTGRES_PASSWORD:-prospex}" \
+      docker compose -f infra/docker-compose.local.yml up -d || die "docker compose falhou (veja acima)"
+  elif [ $IS_WINDOWS = 1 ]; then
+    die "Postgres/Redis não encontrados e o Docker não respondeu.
+   → Abra o Docker Desktop, espere o ícone ficar verde ('Engine running') e rode 'pnpm app' de novo.
+   → Sem Docker: instale Postgres 16 e Redis e deixe-os rodando nas portas 5432 e 6379."
   else
     port_open 5432 || { command -v service >/dev/null && service postgresql start >/dev/null 2>&1 || true; }
     port_open 6379 || { command -v redis-server >/dev/null && redis-server --daemonize yes --dir "$RUN" >/dev/null 2>&1 || true; }
   fi
-  for i in $(seq 1 30); do port_open 5432 && port_open 6379 && break; sleep 1; done
-  port_open 5432 || die "Postgres não está em localhost:5432. Instale Docker (recomendado) ou Postgres 16."
-  port_open 6379 || die "Redis não está em localhost:6379. Instale Docker (recomendado) ou Redis 7."
+  say "aguardando Postgres e Redis ficarem prontos"
+  for i in $(seq 1 60); do port_open 5432 && port_open 6379 && break; sleep 2; done
+  port_open 5432 || die "Postgres não está em localhost:5432. Instale/abra o Docker Desktop (recomendado) ou Postgres 16."
+  port_open 6379 || die "Redis não está em localhost:6379. Instale/abra o Docker Desktop (recomendado) ou Redis 7."
 fi
 
 # 3) dependencies, database, build
-[ -d node_modules ] || { say "pnpm install"; pnpm install --frozen-lockfile >/dev/null 2>&1 || pnpm install; }
+[ -d node_modules ] || { say "pnpm install (primeira vez, pode levar alguns minutos)"; pnpm install --frozen-lockfile || pnpm install; }
 say "prisma generate + migrate"
 pnpm --filter @prospex/database exec prisma generate >/dev/null
 if ! pnpm --filter @prospex/database db:deploy >/tmp/prospector-migrate.log 2>&1; then
@@ -70,9 +79,9 @@ if ! pnpm --filter @prospex/database db:deploy >/tmp/prospector-migrate.log 2>&1
     || { cat /tmp/prospector-migrate.log; die "falha ao preparar o banco (veja acima)"; }
 fi
 if [ $REBUILD = 1 ] || [ ! -f apps/api/dist/main.js ] || [ ! -d apps/web/.next ]; then
-  say "build (primeira vez leva ~1 min)"
-  pnpm --filter @prospex/api build >/dev/null
-  pnpm --filter @prospex/web build >/dev/null
+  say "build da API e do web (primeira vez leva 1-3 min)"
+  pnpm --filter @prospex/api build
+  pnpm --filter @prospex/web build
 fi
 
 # 4) discovery driver: real scraper if gosom is reachable, else demo data

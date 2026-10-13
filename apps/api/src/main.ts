@@ -12,7 +12,12 @@ async function bootstrap() {
   app.setGlobalPrefix("api");
   app.useGlobalPipes(new ValidationPipe({ transform: true, whitelist: true }));
   app.useGlobalFilters(new HttpExceptionFilter());
-  app.enableCors({ origin: process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000" });
+  const configuredOrigin = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
+  // Allow the configured origin plus loopback hosts on any port, so http://127.0.0.1:3000 or a changed WEB_PORT still work locally.
+  const loopback = /^https?:\/\/(localhost|127\.0\.0\.1|\[::1\])(:\d+)?$/;
+  app.enableCors({
+    origin: (origin, cb) => cb(null, !origin || origin === configuredOrigin || loopback.test(origin)),
+  });
 
   const config = new DocumentBuilder()
     .setTitle("Prospex API")

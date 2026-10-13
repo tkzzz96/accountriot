@@ -18,7 +18,20 @@ up()  { curl -sf "$1" >/dev/null 2>&1; }
 port_open() { timeout 2 bash -c "exec 3<>/dev/tcp/127.0.0.1/$1" 2>/dev/null; }
 IS_WINDOWS=0; case "$(uname -s 2>/dev/null)" in MINGW*|MSYS*|CYGWIN*) IS_WINDOWS=1 ;; esac
 
-stop_pid() { if [ -f "$RUN/$1.pid" ]; then kill "$(cat "$RUN/$1.pid")" 2>/dev/null || true; rm -f "$RUN/$1.pid"; fi; return 0; }
+# Kill a launched process together with its children (pnpm -> next-server would otherwise be orphaned).
+kill_tree() {
+  local pid="$1"
+  if [ "$IS_WINDOWS" = 1 ] && command -v taskkill >/dev/null 2>&1; then
+    taskkill //PID "$pid" //T //F >/dev/null 2>&1 || true
+  else
+    local child
+    if command -v pgrep >/dev/null 2>&1; then
+      for child in $(pgrep -P "$pid" 2>/dev/null || true); do kill_tree "$child"; done
+    fi
+    kill "$pid" 2>/dev/null || true
+  fi
+}
+stop_pid() { if [ -f "$RUN/$1.pid" ]; then kill_tree "$(cat "$RUN/$1.pid")"; rm -f "$RUN/$1.pid"; fi; return 0; }
 
 case "${1:-start}" in
   stop)   stop_pid api; stop_pid web; say "stopped"; exit 0 ;;
@@ -92,11 +105,20 @@ say "modo de descoberta: $DISCOVERY_DRIVER $( [ "$DISCOVERY_DRIVER" = mock ] && 
 
 # 5) start API + web
 stop_pid api; stop_pid web
+sleep 1
+for pair in "API:$API_PORT" "WEB:$WEB_PORT"; do
+  if port_open "${pair#*:}"; then
+    die "A porta ${pair#*:} (${pair%%:*}) já está em uso por outro processo, provavelmente uma execução antiga.
+   → Rode 'pnpm app:stop'; se persistir, feche o processo node antigo (Windows: Gerenciador de Tarefas → node.exe; Linux/Mac: lsof -i :${pair#*:}) ou use outra porta: API_PORT=3101 WEB_PORT=3100 pnpm app"
+  fi
+done
 (cd apps/api && PORT=$API_PORT nohup node dist/main.js >"$RUN/api.log" 2>&1 </dev/null & echo $! >"$RUN/api.pid")
-for i in $(seq 1 40); do up "http://localhost:$API_PORT/api/health" && break; sleep 1; done
+for i in $(seq 1 40); do up "http://localhost:$API_PORT/api/health" && break; kill -0 "$(cat "$RUN/api.pid")" 2>/dev/null || break; sleep 1; done
+kill -0 "$(cat "$RUN/api.pid")" 2>/dev/null || { tail -20 "$RUN/api.log"; die "A API encerrou logo após iniciar (log acima, .run/api.log)"; }
 up "http://localhost:$API_PORT/api/health" || { tail -20 "$RUN/api.log"; die "API não subiu (log: .run/api.log)"; }
-(cd apps/web && nohup pnpm exec next start -p "$WEB_PORT" >"$RUN/web.log" 2>&1 </dev/null & echo $! >"$RUN/web.pid")
-for i in $(seq 1 40); do up "http://localhost:$WEB_PORT/login" && break; sleep 1; done
+(cd apps/web && nohup node node_modules/next/dist/bin/next start -p "$WEB_PORT" >"$RUN/web.log" 2>&1 </dev/null & echo $! >"$RUN/web.pid")
+for i in $(seq 1 40); do up "http://localhost:$WEB_PORT/login" && break; kill -0 "$(cat "$RUN/web.pid")" 2>/dev/null || break; sleep 1; done
+kill -0 "$(cat "$RUN/web.pid")" 2>/dev/null || { tail -20 "$RUN/web.log"; die "O web encerrou logo após iniciar (log acima, .run/web.log)"; }
 up "http://localhost:$WEB_PORT/login" || { tail -20 "$RUN/web.log"; die "Web não subiu (log: .run/web.log)"; }
 
 printf '\n\033[1;32m✔ Prospector no ar\033[0m\n   App:  http://localhost:%s   (crie sua conta em /register)\n   API:  http://localhost:%s/api/docs\n   Parar: scripts/start-local.sh stop\n\n' "$WEB_PORT" "$API_PORT"

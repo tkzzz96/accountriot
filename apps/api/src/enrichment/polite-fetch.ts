@@ -7,6 +7,12 @@ const MAX_ORIGINS_CACHED = 500;
  * Fetches pages respecting robots.txt and a per-host rate limit (SSRF-safe via safeGet).
  * Requests to the same host are serialized so concurrent pipeline jobs cannot bypass the delay.
  */
+export interface FetchedPage {
+  html: string;
+  status: number;
+  truncated: boolean;
+}
+
 export class PoliteFetcher {
   private robots = new Map<string, RobotsRules>();
   private hostQueue = new Map<string, Promise<unknown>>();
@@ -43,7 +49,7 @@ export class PoliteFetcher {
   }
 
   /** Returns HTML, or null when robots.txt disallows the path. Throws on network errors. */
-  async fetchHtml(url: string): Promise<{ html: string; status: number; truncated: boolean } | null> {
+  async fetchHtml(url: string): Promise<FetchedPage | null> {
     const u = new URL(url);
     const rules = await this.rulesFor(u.origin);
     if (!isAllowed(rules, u.pathname + u.search)) return null;

@@ -34,6 +34,7 @@ import { WorkspaceModule } from "./workspace/workspace.module";
         PLACES_API_KEY: Joi.string().allow("").default(""),
         EMAIL_SMTP_VERIFY: Joi.string().valid("true", "false").default("false"),
         REFERENCE_TTL_DAYS: Joi.number().min(1).default(30),
+        REFERENCE_PRUNE_SEED: Joi.string().valid("true", "false").default("false"),
         ENABLE_API_DOCS: Joi.string().valid("true", "false").default("false"),
         THROTTLE_TTL_MS: Joi.number().default(60000),
         THROTTLE_LIMIT: Joi.number().default(60),

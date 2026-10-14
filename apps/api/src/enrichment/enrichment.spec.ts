@@ -3,7 +3,8 @@ import { extractContacts, extractEmails, isLikelyMobile } from "./contact-extrac
 import { parseRobots, isAllowed } from "./robots";
 import { verifyEmail } from "./email-verifier";
 import { mergeContacts } from "./enrichment.logic";
-import { fetchWithTruncationRetry, FetchedPage } from "./fetch-retry";
+import { fetchWithTruncationRetry } from "./fetch-retry";
+import type { FetchedPage } from "./polite-fetch";
 
 const html = `
 <html><body>
@@ -115,7 +116,7 @@ describe("fetchWithTruncationRetry", () => {
   };
   it("complete first page: no retry, no notes", async () => {
     const r = await fetchWithTruncationRetry(seq(page("ok", false)), "u");
-    expect(r).toEqual({ page: page("ok", false), notes: [], hostStruggling: false });
+    expect(r).toEqual({ page: page("ok", false), notes: [] });
   });
   it("truncated then complete: uses the retry", async () => {
     const r = await fetchWithTruncationRetry(seq(page("part", true), page("full page", false)), "u");
@@ -126,12 +127,10 @@ describe("fetchWithTruncationRetry", () => {
     const r = await fetchWithTruncationRetry(seq(page("ab", true), page("abcdef", true)), "u");
     expect(r.page?.html).toBe("abcdef");
     expect(r.notes[0]).toMatch(/may be incomplete/);
-    expect(r.hostStruggling).toBe(false);
   });
-  it("retry throws: keeps the first partial and flags the host so the crawl stops", async () => {
+  it("retry throws: keeps the first partial page and records why", async () => {
     const r = await fetchWithTruncationRetry(seq(page("partial", true), new Error("timeout")), "u");
     expect(r.page?.html).toBe("partial");
-    expect(r.hostStruggling).toBe(true);
     expect(r.notes[0]).toMatch(/retry failed/);
   });
   it("retry blocked by robots (null): keeps the first partial", async () => {
@@ -140,6 +139,6 @@ describe("fetchWithTruncationRetry", () => {
     expect(r.notes[0]).toMatch(/may be incomplete/);
   });
   it("first fetch disallowed by robots: null page, no notes", async () => {
-    expect(await fetchWithTruncationRetry(seq(null), "u")).toEqual({ page: null, notes: [], hostStruggling: false });
+    expect(await fetchWithTruncationRetry(seq(null), "u")).toEqual({ page: null, notes: [] });
   });
 });

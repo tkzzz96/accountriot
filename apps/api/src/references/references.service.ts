@@ -6,7 +6,7 @@ import { canonicalNiche } from "./niches";
 import { CURATED_SEED } from "./seed";
 import { CuratedProvider } from "./providers/curated.provider";
 import { PinterestProvider } from "./providers/pinterest.provider";
-import { MIN_REFERENCES, RefItem, diffSeed, mergePool, pickDiverse, thumbFor } from "./selection";
+import { MIN_REFERENCES, REFERENCES_PER_LEAD, RefItem, diffSeed, mergePool, pickDiverse, thumbFor } from "./selection";
 
 @Injectable()
 export class ReferencesService implements OnModuleInit {
@@ -28,6 +28,7 @@ export class ReferencesService implements OnModuleInit {
       const existing = await this.prisma.curatedReference.findMany({ where: { workspaceId: "" } });
       const desired = CURATED_SEED.map((x) => ({ niche: x.niche, url: x.url, title: x.title, thumbUrl: thumbFor(x.url, this.thumbTemplate) }));
       const d = diffSeed(existing, desired);
+      if (this.config.get<string>("REFERENCE_PRUNE_SEED", "false") !== "true") d.staleIds.length = 0; // pruning is opt-in
       if (!d.toCreate.length && !d.toUpdate.length && !d.staleIds.length) return;
       await this.prisma.$transaction([
         ...d.toUpdate.map((u) => this.prisma.curatedReference.update({ where: { id: u.id }, data: { title: u.title, thumbUrl: u.thumbUrl } })),
@@ -35,7 +36,7 @@ export class ReferencesService implements OnModuleInit {
           data: d.toCreate.map((r) => ({ workspaceId: "", language: "any", source: "curated", ...r })),
           skipDuplicates: true,
         }),
-        // Seed entries removed from the code are removed from the shared list too (workspace-owned rows are untouched).
+        // With REFERENCE_PRUNE_SEED=true, entries removed from the code are removed from the shared list (workspace rows are never touched).
         this.prisma.curatedReference.deleteMany({ where: { id: { in: d.staleIds }, workspaceId: "" } }),
         // Changed rows must not wait for the cache TTL; only the affected niches are invalidated.
         this.prisma.referenceCache.deleteMany({ where: { niche: { in: d.changedNiches } } }),
@@ -105,6 +106,6 @@ export class ReferencesService implements OnModuleInit {
 
   /** Three diverse references for one lead. */
   async forLead(workspaceId: string, leadId: string, niche: string, language: string): Promise<RefItem[]> {
-    return pickDiverse(await this.candidates(workspaceId, niche, language), leadId, 3);
+    return pickDiverse(await this.candidates(workspaceId, niche, language), leadId, REFERENCES_PER_LEAD);
   }
 }

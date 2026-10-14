@@ -104,6 +104,11 @@ describe("diffSeed (boot-time seed sync)", () => {
     expect(d.staleIds).toEqual(["id-gone"]);
     expect(d.changedNiches).toEqual(["c"]);
   });
+  it("duplicate entries in the seed cannot flip-flop a row", () => {
+    const d = diffSeed([row("a", "u1", "B")], [want("a", "u1", "A"), want("a", "u1", "B")]);
+    expect(d.toUpdate).toEqual([]);
+    expect(d.toCreate).toEqual([]);
+  });
   it("same URL under two niches is two distinct rows", () => {
     const d = diffSeed([row("a", "u1")], [want("a", "u1"), want("b", "u1")]);
     expect(d.toCreate).toEqual([want("b", "u1")]);

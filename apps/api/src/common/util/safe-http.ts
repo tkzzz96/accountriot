@@ -14,14 +14,18 @@ export class BlockedAddressError extends Error {
     this.name = "BlockedAddressError";
   }
 }
-const AUTHORITATIVE_DNS_CODES = new Set(["ENOTFOUND", "ENODATA", "EAI_NONAME", "EAI_NODATA", "EBADNAME"]) // EBADNAME: malformed hostname, deterministic;
+const AUTHORITATIVE_DNS_CODES = new Set(["ENOTFOUND", "ENODATA", "EAI_NONAME", "EAI_NODATA"]);;
 
 export class DnsFailureError extends Error {
   constructor(message: string, readonly code: string) {
     super(message);
     this.name = "DnsFailureError";
   }
-  /** NXDOMAIN-style answers are authoritative; anything else (EAI_AGAIN, timeouts, SERVFAIL) is a resolver problem. */
+  /**
+   * Only NXDOMAIN-style answers (ENOTFOUND, ENODATA, EAI_NONAME, EAI_NODATA) are authoritative. Everything else — EAI_AGAIN,
+   * timeouts, SERVFAIL, EBADNAME (odd/IDN hostnames the resolver rejects) — is treated as "could not tell": the lead stays UNKNOWN
+   * instead of risking a false "sem site" (CLAUDE.md rule 4).
+   */
   get authoritative(): boolean {
     return AUTHORITATIVE_DNS_CODES.has(this.code);
   }

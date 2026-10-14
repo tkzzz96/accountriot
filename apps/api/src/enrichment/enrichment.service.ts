@@ -45,11 +45,6 @@ export class EnrichmentService {
           const outcome = await fetchWithTruncationRetry((u) => this.fetcher.fetchHtml(u), url);
           const page = outcome.page;
           errors.push(...outcome.notes);
-          if (outcome.hostStruggling && page) {
-            fetched++;
-            if (page.status >= 200 && page.status < 400 && page.html) pageContacts.push({ pageUrl: url, contacts: extractContacts(page.html, input.callingCode) });
-            break; // the host failed twice: do not keep hammering it with the other contact paths
-          }
           if (!page) {
             errors.push(`robots.txt disallows ${url}`);
             continue;

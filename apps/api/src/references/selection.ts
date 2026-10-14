@@ -27,7 +27,7 @@ const hostOf = (u: string) => {
 };
 
 /** Picks `n` references that differ in host and (when possible) in source, rotated deterministically by seed. */
-export function pickDiverse(candidates: RefItem[], seed: string, n = 3): RefItem[] {  // n = MIN_REFERENCES in practice
+export function pickDiverse(candidates: RefItem[], seed: string, n = REFERENCES_PER_LEAD): RefItem[] {
   if (candidates.length === 0) return [];
   const start = hash(seed) % candidates.length;
   const rotated = [...candidates.slice(start), ...candidates.slice(0, start)];
@@ -58,7 +58,9 @@ export function thumbFor(url: string, template = "https://s0.wp.com/mshots/v1/{u
  * Candidate pool: the workspace's own references first, then the shared pool; the generic fallback is used only when
  * fewer than `min` distinct references exist (own references count toward that minimum).
  */
-export const MIN_REFERENCES = 3;
+/** References attached to each lead; the candidate pool needs at least this many distinct entries. */
+export const REFERENCES_PER_LEAD = 3;
+export const MIN_REFERENCES = REFERENCES_PER_LEAD;
 
 export function mergePool(own: RefItem[], shared: RefItem[], generic: () => RefItem[], min = MIN_REFERENCES): RefItem[] {
   const seen = new Set<string>();
@@ -82,6 +84,7 @@ export interface ExistingSeedRow extends SeedRow {
 export function diffSeed(existing: ExistingSeedRow[], desired: SeedRow[]) {
   const key = (r: { niche: string; url: string }) => `${r.niche}|${r.url}`;
   const have = new Map(existing.map((r) => [key(r), r]));
+  desired = [...new Map(desired.map((d) => [key(d), d])).values()]; // duplicate seed entries: last one wins, no flip-flopping
   const want = new Set(desired.map(key));
   const toCreate: SeedRow[] = [];
   const toUpdate: Array<{ id: string; title: string; thumbUrl: string }> = [];

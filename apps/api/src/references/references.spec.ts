@@ -99,8 +99,13 @@ describe("diffSeed (boot-time seed sync)", () => {
     expect(d.toUpdate[1].thumbUrl).toBe("th");
     expect(d.changedNiches).toEqual(["a"]);
   });
-  it("entries removed from the code are pruned and their niche invalidated", () => {
-    const d = diffSeed([row("a", "u1"), row("c", "gone", "T", "th", "id-gone")], [want("a", "u1")]);
+  it("without prune, removed entries are left alone and their niche cache is NOT invalidated", () => {
+    const d = diffSeed([row("a", "u1"), row("c", "gone")], [want("a", "u1"), want("b", "new")]);
+    expect(d.staleIds).toEqual([]);
+    expect(d.changedNiches).toEqual(["b"]);
+  });
+  it("with prune, entries removed from the code are pruned and their niche invalidated", () => {
+    const d = diffSeed([row("a", "u1"), row("c", "gone", "T", "th", "id-gone")], [want("a", "u1")], { prune: true });
     expect(d.staleIds).toEqual(["id-gone"]);
     expect(d.changedNiches).toEqual(["c"]);
   });

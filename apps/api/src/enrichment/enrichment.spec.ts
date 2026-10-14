@@ -116,7 +116,7 @@ describe("fetchWithTruncationRetry", () => {
   };
   it("complete first page: no retry, no notes", async () => {
     const r = await fetchWithTruncationRetry(seq(page("ok", false)), "u");
-    expect(r).toEqual({ page: page("ok", false), notes: [] });
+    expect(r).toEqual({ page: page("ok", false), notes: [], retryFailed: false });
   });
   it("truncated then complete: uses the retry", async () => {
     const r = await fetchWithTruncationRetry(seq(page("part", true), page("full page", false)), "u");
@@ -131,6 +131,7 @@ describe("fetchWithTruncationRetry", () => {
   it("retry throws: keeps the first partial page and records why", async () => {
     const r = await fetchWithTruncationRetry(seq(page("partial", true), new Error("timeout")), "u");
     expect(r.page?.html).toBe("partial");
+    expect(r.retryFailed).toBe(true); // the service stops crawling this host after processing the partial page
     expect(r.notes[0]).toMatch(/retry failed/);
   });
   it("retry blocked by robots (null): keeps the first partial", async () => {
@@ -139,6 +140,6 @@ describe("fetchWithTruncationRetry", () => {
     expect(r.notes[0]).toMatch(/may be incomplete/);
   });
   it("first fetch disallowed by robots: null page, no notes", async () => {
-    expect(await fetchWithTruncationRetry(seq(null), "u")).toEqual({ page: null, notes: [] });
+    expect(await fetchWithTruncationRetry(seq(null), "u")).toEqual({ page: null, notes: [], retryFailed: false });
   });
 });

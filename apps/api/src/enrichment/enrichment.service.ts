@@ -53,6 +53,7 @@ export class EnrichmentService {
           if (page.status >= 200 && page.status < 400 && page.html) {
             pageContacts.push({ pageUrl: url, contacts: extractContacts(page.html, input.callingCode) });
           }
+          if (outcome.retryFailed) break; // host failed twice: keep what we got, stop hammering it (robots/rate-limit politeness)
         } catch (err) {
           errors.push(`fetch ${url}: ${err instanceof Error ? err.message : String(err)}`);
           break; // host unreachable — don't hammer it

@@ -54,13 +54,15 @@ export function thumbFor(url: string, template = "https://s0.wp.com/mshots/v1/{u
   return template.replace("{url}", encodeURIComponent(url));
 }
 
+/** References attached to each lead. */
+export const REFERENCES_PER_LEAD = 3;
+/** Distinct candidates the pool should have before the generic fallback is skipped (kept equal to REFERENCES_PER_LEAD today, but a separate concern). */
+export const MIN_REFERENCES = 3;
+
 /**
  * Candidate pool: the workspace's own references first, then the shared pool; the generic fallback is used only when
  * fewer than `min` distinct references exist (own references count toward that minimum).
  */
-/** References attached to each lead; the candidate pool needs at least this many distinct entries. */
-export const REFERENCES_PER_LEAD = 3;
-export const MIN_REFERENCES = REFERENCES_PER_LEAD;
 
 export function mergePool(own: RefItem[], shared: RefItem[], generic: () => RefItem[], min = MIN_REFERENCES): RefItem[] {
   const seen = new Set<string>();
@@ -81,7 +83,7 @@ export interface ExistingSeedRow extends SeedRow {
 }
 
 /** Pure diff between the code's seed and the global rows in the DB: what to create, update, prune, and which niches' cache to drop. */
-export function diffSeed(existing: ExistingSeedRow[], desired: SeedRow[]) {
+export function diffSeed(existing: ExistingSeedRow[], desired: SeedRow[], opts: { prune: boolean } = { prune: false }) {
   const key = (r: { niche: string; url: string }) => `${r.niche}|${r.url}`;
   const have = new Map(existing.map((r) => [key(r), r]));
   desired = [...new Map(desired.map((d) => [key(d), d])).values()]; // duplicate seed entries: last one wins, no flip-flopping
@@ -99,7 +101,8 @@ export function diffSeed(existing: ExistingSeedRow[], desired: SeedRow[]) {
       niches.add(d.niche);
     }
   }
-  const stale = existing.filter((r) => !want.has(key(r)));
+  // Stale rows (removed from the code) are only reported — and only invalidate their niche — when pruning is enabled.
+  const stale = opts.prune ? existing.filter((r) => !want.has(key(r))) : [];
   for (const r of stale) niches.add(r.niche);
   return { toCreate, toUpdate, staleIds: stale.map((r) => r.id), changedNiches: [...niches] };
 }

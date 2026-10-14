@@ -38,6 +38,9 @@ Dono do projeto: Ryan (estrategista web/PM, fala português). Responda ao Ryan e
 - E2E local: `PW_CHROMIUM_PATH=<chrome> THROTTLE_LIMIT=5000 AUTH_THROTTLE_LIMIT=5000 scripts/restart-api.sh` + `next start` + `pnpm test:e2e`.
 - Health: `curl localhost:3001/api/health`. Base importada do Prospex; CLAUDE.md original em `docs/PROSPEX_CLAUDE.md`.
 
+## Auditoria
+- Checklist e plano em `docs/AUDIT.md`. Migrações já commitadas são imutáveis (correções = nova migração idempotente). Dúvida na classificação do site => `UNKNOWN`, nunca `DEAD`/sem site.
+
 ## Convenções
 - TypeScript estrito. Validar entradas com zod/class-validator. Erros explícitos, sem `catch` vazio.
 - Testes: Vitest/Jest para unidades (classificador de site e score OBRIGATÓRIOS), Playwright já existe para e2e.

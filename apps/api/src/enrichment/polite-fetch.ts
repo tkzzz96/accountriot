@@ -3,16 +3,16 @@ import { isAllowed, parseRobots, RobotsRules } from "./robots";
 
 const MAX_ORIGINS_CACHED = 500;
 
-/**
- * Fetches pages respecting robots.txt and a per-host rate limit (SSRF-safe via safeGet).
- * Requests to the same host are serialized so concurrent pipeline jobs cannot bypass the delay.
- */
 export interface FetchedPage {
   html: string;
   status: number;
   truncated: boolean;
 }
 
+/**
+ * Fetches pages respecting robots.txt and a per-host rate limit (SSRF-safe via safeGet).
+ * Requests to the same host are serialized so concurrent pipeline jobs cannot bypass the delay.
+ */
 export class PoliteFetcher {
   private robots = new Map<string, RobotsRules>();
   private hostQueue = new Map<string, Promise<unknown>>();

@@ -27,8 +27,7 @@ export class ReferencesService implements OnModuleInit {
     try {
       const existing = await this.prisma.curatedReference.findMany({ where: { workspaceId: "" } });
       const desired = CURATED_SEED.map((x) => ({ niche: x.niche, url: x.url, title: x.title, thumbUrl: thumbFor(x.url, this.thumbTemplate) }));
-      const d = diffSeed(existing, desired);
-      if (this.config.get<string>("REFERENCE_PRUNE_SEED", "false") !== "true") d.staleIds.length = 0; // pruning is opt-in
+      const d = diffSeed(existing, desired, { prune: this.config.get<string>("REFERENCE_PRUNE_SEED", "false") === "true" });
       if (!d.toCreate.length && !d.toUpdate.length && !d.staleIds.length) return;
       await this.prisma.$transaction([
         ...d.toUpdate.map((u) => this.prisma.curatedReference.update({ where: { id: u.id }, data: { title: u.title, thumbUrl: u.thumbUrl } })),

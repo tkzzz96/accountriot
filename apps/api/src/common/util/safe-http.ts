@@ -14,7 +14,7 @@ export class BlockedAddressError extends Error {
     this.name = "BlockedAddressError";
   }
 }
-const AUTHORITATIVE_DNS_CODES = new Set(["ENOTFOUND", "ENODATA", "EAI_NONAME", "EAI_NODATA"]);;
+const AUTHORITATIVE_DNS_CODES = new Set(["ENOTFOUND", "ENODATA", "EAI_NONAME", "EAI_NODATA"]);
 
 export class DnsFailureError extends Error {
   constructor(message: string, readonly code: string) {

@@ -77,7 +77,7 @@ Legenda: ✅ feito e verificado · 🟡 parcial / decisão registrada · ⬜ pen
 - [x] ✅ CI: `pnpm lint`, typecheck do MCP, testes unitários da API **e do MCP**, driver `mock` no e2e.
 - [x] ✅ Compose de produção com o gosom isolado + variáveis de descoberta; YAML validado.
 - [x] ✅ `.gitignore` (resultados do Playwright, relatórios, dump do Redis, `.run/`); `.env.example` completo.
-- [x] ✅ Testes: de 111 → **342 unitários** (+5 de integração com Postgres) + 6 do MCP + **42 e2e** (2 *skip* de exportação); suíte de segurança "nenhum código envia mensagens".
+- [x] ✅ Testes: de 111 → **342 unitários** (+5 de integração com Postgres) + 6 do MCP + **44 e2e** (todos passando); suíte de segurança "nenhum código envia mensagens".
 - [~] 🟡 Container da API aplica `prisma migrate deploy` ao iniciar (`RUN_MIGRATIONS=false` desliga); instalação `--frozen-lockfile` dos estágios `deps` simulada para api e web. **Falta** `docker build`/`compose up` de verdade (sem daemon aqui).
 - [~] 🟡 `start.cmd` (Windows → Git Bash) adicionado; launcher segue validado só em Linux — falta testar no Windows/macOS.
 - [x] ✅ Dependabot (npm agrupado, Actions, Docker) e `pnpm audit --audit-level=critical` no CI. Dependências atualizadas (Next 16.4.1, Vitest 4, Joi, SDK do MCP…) + `pnpm.overrides` com faixas *caret*: **87 → 7 avisos, 0 críticos/altos**. Restam só 3 *low* + 4 *moderate* em ferramentas de build (`@nestjs/cli`, ESLint) e no `@nestjs/core` 10 (corrigir exige migrar para Nest 11 — fora de escopo, ver backlog).
@@ -98,7 +98,7 @@ Legenda: ✅ feito e verificado · 🟡 parcial / decisão registrada · ⬜ pen
 | **P2 – Estrutura e banco** | C: índices, lista leve, filtros/endpoints, Joi, constantes, política de migrações | ✅ concluída | `prisma migrate diff` == schema; build/lint |
 | **P3 – Front-end** | D: debounce, filtros, totais, falhas/retry, erros de rede, polling, i18n do fluxo, a11y | ✅ concluída | e2e + tsc + lint |
 | **P4 – Infra/CI/docs** | E: CI, compose, gitignore, docs, testes | ✅ concluída (exceto Docker real) | YAML válido, CI atualizado |
-| **P5 – Endurecimento** | A: cookie `httpOnly`+CSRF, sessão deslizante, API keys (REST + MCP), CSP · C: integração com DB no CI, observabilidade/limite de custo do LLM, exclusão de workspace · D: i18n completo, kanban, lote · E: Dependabot, audit no CI, migrações no start do container | ✅ concluída | unitários (342) + integração (Postgres) + e2e (42) + `pnpm audit` sem críticos/altos + build/lint |
+| **P5 – Endurecimento** | A: cookie `httpOnly`+CSRF, sessão deslizante, API keys (REST + MCP), CSP · C: integração com DB no CI, observabilidade/limite de custo do LLM, exclusão de workspace · D: i18n completo, kanban, lote · E: Dependabot, audit no CI, migrações no start do container | ✅ concluída | unitários (342) + integração (Postgres) + e2e (44) + `pnpm audit` sem críticos/altos + build/lint |
 | **P6 – Validação em ambiente real** | B/E/F: gosom/Places/LLM/SMTP reais, Docker de ponta a ponta, launcher Windows/macOS, rodada real 1 cidade × 1 nicho, calibração de score, revisão do tom | ⬜ depende de você | rodar na sua máquina e me enviar logs/erros |
 
 ---

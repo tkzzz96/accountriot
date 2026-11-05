@@ -1,5 +1,5 @@
 import { createHash } from "crypto";
-import { CanActivate, ExecutionContext, ForbiddenException, Injectable, UnauthorizedException } from "@nestjs/common";
+import { CanActivate, ExecutionContext, ForbiddenException, Injectable, Logger, UnauthorizedException } from "@nestjs/common";
 import { JwtService } from "@nestjs/jwt";
 import { ConfigService } from "@nestjs/config";
 import { PrismaService } from "../prisma/prisma.service";
@@ -15,6 +15,8 @@ const RENEW_AFTER_MS = 24 * 3600_000; // sliding session: re-issue the cookie wh
  */
 @Injectable()
 export class JwtGuard implements CanActivate {
+  private readonly logger = new Logger(JwtGuard.name);
+
   constructor(
     private jwtService: JwtService,
     private config: ConfigService,
@@ -77,7 +79,7 @@ export class JwtGuard implements CanActivate {
     const key = await this.prisma.apiKey.findUnique({ where: { keyHash } });
     if (!key) throw new UnauthorizedException("API key not found or revoked");
     if (key.expiresAt && key.expiresAt < new Date()) throw new UnauthorizedException("API key has expired");
-    this.prisma.apiKey.update({ where: { id: key.id }, data: { lastUsedAt: new Date() } }).catch(() => undefined);
+    this.prisma.apiKey.update({ where: { id: key.id }, data: { lastUsedAt: new Date() } }).catch((err: unknown) => this.logger.warn(`could not record API key usage: ${err instanceof Error ? err.message : String(err)}`));
     return { workspaceId: key.workspaceId, apiKeyId: key.id }; // deliberately no `sub`: not a user
   }
 }

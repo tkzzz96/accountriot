@@ -1,11 +1,4 @@
-import { test, expect } from "./fixtures";
-
-const CAMPAIGN = {
-  name: `E2E Campaign ${Date.now()}`,
-  niche: "barbearia",
-  city: "Curitiba",
-  country: "Brasil",
-};
+import { test, expect, ensureLeads } from "./fixtures";
 
 // Requires the API to run with DISCOVERY_DRIVER=mock (deterministic offline data).
 test.describe("Campaigns", () => {
@@ -22,19 +15,11 @@ test.describe("Campaigns", () => {
     await expect(page.getByText("Somente empresas sem site")).toBeVisible();
   });
 
+  // The mock driver is deterministic, so a workspace can only hold one full mock campaign (dedupe). `ensureLeads` runs the whole
+  // create-campaign UI flow once and waits for "Concluída"; this test then verifies what the pipeline produced for a lead.
   test("create campaign -> leads reach READY -> card shows evidence, draft and 3 references", async ({ authedPage: page }) => {
-    await page.goto("/campaigns/new");
-    await page.fill("#name", CAMPAIGN.name);
-    await page.getByTestId("niche-input").fill(CAMPAIGN.niche);
-    await page.getByTestId("city-input").fill(CAMPAIGN.city);
-    await page.fill("#country", CAMPAIGN.country);
-    await page.click('button[type="submit"]');
-
-    await page.waitForURL(/\/campaigns\/(?!new$)[a-z0-9-]+$/, { timeout: 15000 });
-    await expect(page.getByText(CAMPAIGN.name)).toBeVisible();
-    await expect(page.getByText("Concluída")).toBeVisible({ timeout: 90000 });
-
-    // Open the first lead of the campaign
+    await ensureLeads(page);
+    await page.goto("/leads?stage=READY");
     await page.locator("a[href^='/leads/']").first().click();
     await page.waitForURL(/\/leads\/[a-z0-9]+$/);
 

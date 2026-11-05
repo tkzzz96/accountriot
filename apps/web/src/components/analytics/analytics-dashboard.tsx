@@ -10,6 +10,9 @@ import {
   PieChart, Pie, Cell,
 } from "recharts";
 import { api } from "@/lib/api";
+import { useI18n } from "@/lib/i18n";
+import { useOpsStats } from "@/hooks/use-ops";
+import { CRM_META, SITE_META, SITE_STATUSES, type CrmStatus } from "@/lib/lead-meta";
 
 interface Overview {
   totalLeads: number;
@@ -48,6 +51,9 @@ export function AnalyticsDashboard() {
   const [overview, setOverview] = useState<Overview | null>(null);
   const [industries, setIndustries] = useState<IndustryRow[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(false);
+  const { t } = useI18n();
+  const { stats: ops } = useOpsStats();
 
   useEffect(() => {
     Promise.all([
@@ -56,11 +62,11 @@ export function AnalyticsDashboard() {
     ]).then(([ov, ind]) => {
       setOverview(ov);
       setIndustries(ind);
-    }).catch(console.error).finally(() => setLoading(false));
+    }).catch((e) => { console.error("analytics", e); setError(true); }).finally(() => setLoading(false));
   }, []);
 
   const funnelData = (overview?.crmPipeline ?? []).map((item) => ({
-    name: item.status.charAt(0).toUpperCase() + item.status.slice(1),
+    name: CRM_META[item.status as CrmStatus] ? t(CRM_META[item.status as CrmStatus].key) : item.status,
     value: item.count,
     color: CRM_COLORS[item.status] ?? "#94a3b8",
   }));
@@ -104,14 +110,16 @@ export function AnalyticsDashboard() {
   }
 
   const stats = [
-    { label: "Total Leads", value: overview?.totalLeads.toLocaleString() ?? "0" },
-    { label: "Conversion Rate", value: overview?.conversionRate ?? "0%" },
-    { label: "Deals Won", value: overview?.dealsWon.toString() ?? "0" },
-    { label: "Active Campaigns", value: overview?.activeCampaigns.toString() ?? "0" },
+    { label: t("dash.totalLeads"), value: overview?.totalLeads.toLocaleString() ?? "0" },
+    { label: t("dash.conversionRate"), value: overview?.conversionRate ?? "0%" },
+    { label: t("dash.dealsWon"), value: overview?.dealsWon.toString() ?? "0" },
+    { label: t("dash.activeCampaigns"), value: overview?.activeCampaigns.toString() ?? "0" },
   ];
+  const siteTotal = SITE_STATUSES.reduce((n, k) => n + (ops?.leadsBySiteStatus[k] ?? 0), 0);
 
   return (
     <div className="space-y-6">
+      {error && <p role="alert" className="text-sm text-destructive">{t("an.loadError")}</p>}
       <motion.div
         variants={container}
         initial="hidden"
@@ -133,12 +141,12 @@ export function AnalyticsDashboard() {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
         <Card className="lg:col-span-2">
           <CardHeader className="pb-2">
-            <CardTitle className="text-base">Leads by Industry</CardTitle>
+            <CardTitle className="text-base">{t("an.byIndustry")}</CardTitle>
           </CardHeader>
           <CardContent>
             {industryData.length === 0 ? (
               <div className="h-[240px] flex items-center justify-center text-sm text-muted-foreground">
-                No industry data yet — create a campaign to start
+                {t("an.noIndustry")}
               </div>
             ) : (
               <ResponsiveContainer width="100%" height={240}>
@@ -154,8 +162,8 @@ export function AnalyticsDashboard() {
                       fontSize: "12px",
                     }}
                   />
-                  <Bar dataKey="leads" fill="hsl(var(--primary))" radius={[4, 4, 0, 0]} name="Total Leads" />
-                  <Bar dataKey="avgScore" fill="hsl(var(--accent))" radius={[4, 4, 0, 0]} name="Avg Score" />
+                  <Bar dataKey="leads" fill="hsl(var(--primary))" radius={[4, 4, 0, 0]} name={t("an.seriesLeads")} />
+                  <Bar dataKey="avgScore" fill="hsl(var(--accent))" radius={[4, 4, 0, 0]} name={t("an.seriesAvg")} />
                 </BarChart>
               </ResponsiveContainer>
             )}
@@ -164,12 +172,12 @@ export function AnalyticsDashboard() {
 
         <Card>
           <CardHeader className="pb-2">
-            <CardTitle className="text-base">CRM Funnel</CardTitle>
+            <CardTitle className="text-base">{t("an.funnel")}</CardTitle>
           </CardHeader>
           <CardContent>
             {funnelData.length === 0 ? (
               <div className="h-[200px] flex items-center justify-center text-sm text-muted-foreground text-center">
-                No leads yet
+                {t("an.noLeads")}
               </div>
             ) : (
               <>
@@ -205,14 +213,37 @@ export function AnalyticsDashboard() {
         </Card>
       </div>
 
+      {siteTotal > 0 && (
+        <Card data-testid="site-status-card">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-base">{t("an.siteStatus")}</CardTitle>
+            <p className="text-xs text-muted-foreground">{t("an.siteStatusHint")}</p>
+          </CardHeader>
+          <CardContent className="space-y-2">
+            {SITE_STATUSES.map((k) => {
+              const n = ops?.leadsBySiteStatus[k] ?? 0;
+              return (
+                <div key={k} className="flex items-center gap-3 text-sm">
+                  <span className="w-36 text-muted-foreground">{t(SITE_META[k].key)}</span>
+                  <div className="h-2 flex-1 rounded bg-muted overflow-hidden">
+                    <div className="h-full bg-primary" style={{ width: `${Math.round((n / siteTotal) * 100)}%` }} />
+                  </div>
+                  <span className="w-10 text-right font-semibold">{n}</span>
+                </div>
+              );
+            })}
+          </CardContent>
+        </Card>
+      )}
+
       {funnelData.length === 0 && industryData.length === 0 && (
         <Card className="border-dashed">
           <CardContent className="py-12 text-center">
             <p className="text-muted-foreground text-sm">
-              Analytics data will appear here once you run your first campaign.
+              {t("an.empty")}
             </p>
             <Badge variant="secondary" className="mt-3">
-              Go to Campaigns → New Campaign to get started
+              {t("an.emptyCta")}
             </Badge>
           </CardContent>
         </Card>

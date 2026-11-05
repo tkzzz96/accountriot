@@ -6,11 +6,13 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Users, Megaphone, TrendingUp, Trophy, ArrowUpRight, ArrowRight, Loader2, Plus, Inbox } from "lucide-react";
+import { Users, Megaphone, TrendingUp, Trophy, ArrowRight, Loader2, Plus, Inbox } from "lucide-react";
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
 import { useCampaigns } from "@/hooks/use-campaigns";
 import { api } from "@/lib/api";
 import { formatDate } from "@/lib/utils";
+import { useI18n } from "@/lib/i18n";
+import { useAuth } from "@/hooks/use-auth";
 
 const container = {
   hidden: { opacity: 0 },
@@ -30,23 +32,29 @@ interface Overview {
 
 export function DashboardOverview() {
   const { campaigns, loading } = useCampaigns();
+  const { t, locale } = useI18n();
+  const { user } = useAuth();
   const recent = campaigns.slice(0, 4);
   const [overview, setOverview] = useState<Overview | null>(null);
 
   useEffect(() => {
-    api.get<Overview>("/analytics").then(setOverview).catch(console.error);
+    api.get<Overview>("/analytics").then(setOverview).catch((e) => console.error("analytics", e));
   }, []);
 
+  const hour = new Date().getHours();
+  const greetKey = hour < 12 ? "dash.greetingMorning" : hour < 18 ? "dash.greetingAfternoon" : "dash.greetingEvening";
+  const firstName = user?.name?.split(" ")[0] ?? "";
+
   const stats = [
-    { title: "Total Leads", value: overview?.totalLeads.toLocaleString() ?? "—", icon: Users, color: "text-blue-500", bg: "bg-blue-500/10" },
-    { title: "Active Campaigns", value: overview?.activeCampaigns.toString() ?? "—", icon: Megaphone, color: "text-purple-500", bg: "bg-purple-500/10" },
-    { title: "Conversion Rate", value: overview?.conversionRate ?? "—", icon: TrendingUp, color: "text-emerald-500", bg: "bg-emerald-500/10" },
-    { title: "Deals Won", value: overview?.dealsWon.toString() ?? "—", icon: Trophy, color: "text-amber-500", bg: "bg-amber-500/10" },
+    { title: t("dash.totalLeads"), value: overview?.totalLeads.toLocaleString() ?? "—", icon: Users, color: "text-blue-500", bg: "bg-blue-500/10" },
+    { title: t("dash.activeCampaigns"), value: overview?.activeCampaigns.toString() ?? "—", icon: Megaphone, color: "text-purple-500", bg: "bg-purple-500/10" },
+    { title: t("dash.conversionRate"), value: overview?.conversionRate ?? "—", icon: TrendingUp, color: "text-emerald-500", bg: "bg-emerald-500/10" },
+    { title: t("dash.dealsWon"), value: overview?.dealsWon.toString() ?? "—", icon: Trophy, color: "text-amber-500", bg: "bg-amber-500/10" },
   ];
 
   // Build trend from campaign data (campaigns per week by createdAt)
   const trendData = campaigns.slice(-6).map((c) => ({
-    date: new Date(c.createdAt).toLocaleDateString("en-US", { month: "short", day: "numeric" }),
+    date: new Date(c.createdAt).toLocaleDateString(locale, { month: "short", day: "numeric" }),
     leads: c.totalLeads,
     won: c.priorityLeads,
   }));
@@ -55,14 +63,12 @@ export function DashboardOverview() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight">Good morning 👋</h1>
-          <p className="text-muted-foreground text-sm mt-0.5">
-            Here&apos;s what&apos;s happening with your leads today.
-          </p>
+          <h1 className="text-2xl font-bold tracking-tight">{t(greetKey, { name: firstName }).replace(", ,", ",")}</h1>
+          <p className="text-muted-foreground text-sm mt-0.5">{t("dash.subtitle")}</p>
         </div>
         <Button asChild variant="gradient">
           <Link href="/campaigns/new">
-            <Plus className="mr-2 h-4 w-4" />New Campaign
+            <Plus className="mr-2 h-4 w-4" />{t("dash.newCampaign")}
           </Link>
         </Button>
       </div>
@@ -81,7 +87,6 @@ export function DashboardOverview() {
                   <div className={`p-2 rounded-lg ${stat.bg}`}>
                     <stat.icon className={`w-4 h-4 ${stat.color}`} />
                   </div>
-                  <ArrowUpRight className="w-3 h-3 text-success" />
                 </div>
                 {overview ? (
                   <p className="text-2xl font-bold">{stat.value}</p>
@@ -99,8 +104,8 @@ export function DashboardOverview() {
         <Card className="lg:col-span-3">
           <CardHeader className="pb-2">
             <div className="flex items-center justify-between">
-              <CardTitle className="text-base">Lead Generation Trend</CardTitle>
-              <Badge variant="outline" className="text-xs">Last 6 months</Badge>
+              <CardTitle className="text-base">{t("dash.trend")}</CardTitle>
+              <Badge variant="outline" className="text-xs">{t("dash.trendBadge")}</Badge>
             </div>
           </CardHeader>
           <CardContent>
@@ -127,8 +132,8 @@ export function DashboardOverview() {
                     fontSize: "12px",
                   }}
                 />
-                <Area type="monotone" dataKey="leads" stroke="#8b5cf6" strokeWidth={2} fill="url(#g1)" name="Total Leads" />
-                <Area type="monotone" dataKey="won" stroke="#10b981" strokeWidth={2} fill="url(#g2)" name="Priority Leads" />
+                <Area type="monotone" dataKey="leads" stroke="#8b5cf6" strokeWidth={2} fill="url(#g1)" name={t("dash.seriesLeads")} />
+                <Area type="monotone" dataKey="won" stroke="#10b981" strokeWidth={2} fill="url(#g2)" name={t("dash.seriesPriority")} />
               </AreaChart>
             </ResponsiveContainer>
           </CardContent>
@@ -137,9 +142,9 @@ export function DashboardOverview() {
         <Card className="lg:col-span-2">
           <CardHeader className="pb-2">
             <div className="flex items-center justify-between">
-              <CardTitle className="text-base">Recent Campaigns</CardTitle>
+              <CardTitle className="text-base">{t("dash.recent")}</CardTitle>
               <Button variant="ghost" size="sm" asChild className="text-xs h-7 px-2">
-                <Link href="/campaigns">View all <ArrowRight className="ml-1 w-3 h-3" /></Link>
+                <Link href="/campaigns">{t("dash.viewAll")} <ArrowRight className="ml-1 w-3 h-3" /></Link>
               </Button>
             </div>
           </CardHeader>
@@ -161,9 +166,9 @@ export function DashboardOverview() {
                 <div className="p-3 rounded-full bg-muted">
                   <Inbox className="w-5 h-5 text-muted-foreground" />
                 </div>
-                <p className="text-sm text-muted-foreground">No campaigns yet</p>
+                <p className="text-sm text-muted-foreground">{t("dash.noCampaigns")}</p>
                 <Button asChild size="sm" variant="outline" className="mt-1">
-                  <Link href="/campaigns/new">Create your first campaign</Link>
+                  <Link href="/campaigns/new">{t("dash.createFirst")}</Link>
                 </Button>
               </div>
             ) : (
@@ -180,14 +185,14 @@ export function DashboardOverview() {
                     <div className="flex-1 min-w-0">
                       <p className="text-sm font-medium truncate">{c.name}</p>
                       <p className="text-xs text-muted-foreground">
-                        {c.totalLeads} leads · {formatDate(c.createdAt)}
+                        {t("dash.leadsCount", { n: c.totalLeads })} · {formatDate(c.createdAt)}
                       </p>
                     </div>
                     {c.status === "running" && (
                       <Loader2 className="w-3.5 h-3.5 animate-spin text-info flex-shrink-0" />
                     )}
                     {c.status === "completed" && (
-                      <Badge variant="success" className="text-[10px] py-0">Done</Badge>
+                      <Badge variant="success" className="text-[10px] py-0">{t("dash.done")}</Badge>
                     )}
                   </Link>
                 ))}

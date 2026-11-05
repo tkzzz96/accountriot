@@ -1,13 +1,14 @@
+import { Suspense } from "react";
 import { LeadsList } from "@/components/leads/leads-list";
+import { PageHeader } from "@/components/layout/page-header";
 
 export default function LeadsPage() {
   return (
     <div>
-      <div className="mb-6">
-        <h1 className="text-2xl font-bold tracking-tight">Leads</h1>
-        <p className="text-muted-foreground">All leads across your campaigns</p>
-      </div>
-      <LeadsList />
+      <PageHeader title="nav.leads" subtitle="leads.subtitle" />
+      <Suspense fallback={null}>
+        <LeadsList />
+      </Suspense>
     </div>
   );
 }

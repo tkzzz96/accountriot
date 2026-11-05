@@ -10,8 +10,13 @@ export function formatNumber(n: number): string {
   return n.toString();
 }
 
-export function formatDate(date: string | Date): string {
-  return new Date(date).toLocaleDateString("en-US", {
+/** Current UI locale as set by the I18nProvider on <html lang>. */
+export function currentLocale(): string {
+  return typeof document !== "undefined" && document.documentElement.lang ? document.documentElement.lang : "pt-BR";
+}
+
+export function formatDate(date: string | Date, locale: string = currentLocale()): string {
+  return new Date(date).toLocaleDateString(locale, {
     month: "short",
     day: "numeric",
     year: "numeric",

@@ -10,11 +10,14 @@ import { Progress } from "@/components/ui/progress";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
-import { AlertTriangle, ArrowLeft, Download, Users, Star, TrendingUp, MapPin, Loader2, List, Map as MapIcon } from "lucide-react";
+import { AlertTriangle, ArrowLeft, Download, RotateCw, Users, Star, TrendingUp, MapPin, Loader2, List, Map as MapIcon } from "lucide-react";
 import { useCampaign } from "@/hooks/use-campaigns";
 import { useLeads } from "@/hooks/use-leads";
 import { LeadsTable } from "@/components/leads/leads-table";
 import { api } from "@/lib/api";
+import { toast } from "sonner";
+import { useI18n } from "@/lib/i18n";
+import { SITE_META, SITE_STATUSES } from "@/lib/lead-meta";
 
 const LeadsMap = dynamic(() => import("@/components/leads/leads-map").then((m) => m.LeadsMap), {
   ssr: false,
@@ -32,6 +35,7 @@ const item = {
 
 export function CampaignDetail({ id }: { id: string }) {
   const { campaign, loading, refresh } = useCampaign(id);
+  const { t } = useI18n();
   const [siteFilter, setSiteFilter] = useState("all");
   const [scoreFilter, setScoreFilter] = useState("all");
   const { leads, total, loading: leadsLoading, refresh: refreshLeads } = useLeads({
@@ -60,8 +64,21 @@ export function CampaignDetail({ id }: { id: string }) {
       await Promise.all(failedLeads.map((l) => api.post(`/leads/${l.id}/retry`, {})));
       await refresh();
       await refreshFailed();
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : t("common.error"));
     } finally {
       setRetrying(false);
+    }
+  };
+
+  const rerun = async () => {
+    if (!window.confirm(t("cd.rerunConfirm"))) return;
+    try {
+      await api.post(`/scraper/campaigns/${id}/start`);
+      toast.success(t("cd.rerunStarted"));
+      await refresh();
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : t("common.error"));
     }
   };
 
@@ -90,30 +107,35 @@ export function CampaignDetail({ id }: { id: string }) {
     );
   }
   if (!campaign) {
-    return <div className="text-center py-20 text-muted-foreground">Campanha não encontrada</div>;
+    return <div className="text-center py-20 text-muted-foreground">{t("cd.notFound")}</div>;
   }
 
   return (
     <motion.div variants={container} initial="hidden" animate="show" className="space-y-6">
       <motion.div variants={item} className="flex items-center gap-4">
         <Button variant="ghost" size="icon" asChild>
-          <Link href="/campaigns"><ArrowLeft className="h-4 w-4" /></Link>
+          <Link href="/campaigns" aria-label={t("cd.back")}><ArrowLeft className="h-4 w-4" /></Link>
         </Button>
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 flex-wrap">
             <h1 className="text-xl font-bold truncate">{campaign.name}</h1>
-            {campaign.status === "completed" && <Badge variant="success">Completed</Badge>}
-            {campaign.status === "failed" && <Badge variant="destructive">Falhou</Badge>}
+            {campaign.status === "completed" && <Badge variant="success">{t("camp.statusCompleted")}</Badge>}
+            {campaign.status === "failed" && <Badge variant="destructive">{t("camp.statusFailed")}</Badge>}
             {campaign.status === "running" && (
               <Badge variant="info" className="flex items-center gap-1">
                 <Loader2 className="w-3 h-3 animate-spin" />{campaign.progress}%
               </Badge>
             )}
-            {campaign.status === "draft" && <Badge variant="secondary">Rascunho</Badge>}
+            {campaign.status === "draft" && <Badge variant="secondary">{t("camp.statusDraft")}</Badge>}
           </div>
           <p className="text-muted-foreground text-sm capitalize">{campaign.industry} · {campaign.location}</p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-wrap">
+          {(campaign.status === "completed" || campaign.status === "failed") && (
+            <Button variant="outline" size="sm" onClick={rerun} data-testid="rerun-campaign">
+              <RotateCw className="mr-2 h-4 w-4" />{t("cd.rerun")}
+            </Button>
+          )}
           <Button variant="outline" size="sm" onClick={() => api.download(`/export/leads/csv?campaignId=${id}`, `leads-${id}.csv`)}>
             <Download className="mr-2 h-4 w-4" />CSV
           </Button>
@@ -128,10 +150,10 @@ export function CampaignDetail({ id }: { id: string }) {
 
       <motion.div variants={item} className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         {[
-          { label: "Total de leads", value: campaign.totalLeads, icon: Users, color: "text-info" },
-          { label: "Prioridade alta", value: campaign.priorityLeads, icon: Star, color: "text-warning" },
-          { label: "Alta qualidade (70+)", value: campaign.highQualityLeads, icon: TrendingUp, color: "text-success" },
-          { label: "Score médio", value: campaign.averageScore || "—", icon: MapPin, color: "text-primary" },
+          { label: t("cd.statLeads"), value: campaign.totalLeads, icon: Users, color: "text-info" },
+          { label: t("cd.statPriority"), value: campaign.priorityLeads, icon: Star, color: "text-warning" },
+          { label: t("cd.statQuality"), value: campaign.highQualityLeads, icon: TrendingUp, color: "text-success" },
+          { label: t("cd.statAvg"), value: campaign.averageScore || "—", icon: MapPin, color: "text-primary" },
         ].map((s) => (
           <Card key={s.label} interactive>
             <CardContent className="pt-4 pb-4">
@@ -151,7 +173,7 @@ export function CampaignDetail({ id }: { id: string }) {
             <CardContent className="pt-4">
               <div className="flex justify-between text-sm mb-2">
                 <span className="flex items-center gap-1.5 text-muted-foreground">
-                  <Loader2 className="w-3.5 h-3.5 animate-spin text-info" />Buscando, classificando e preparando os leads...
+                  <Loader2 className="w-3.5 h-3.5 animate-spin text-info" />{t("cd.running")}
                 </span>
                 <span className="font-medium">{campaign.progress}%</span>
               </div>
@@ -166,7 +188,7 @@ export function CampaignDetail({ id }: { id: string }) {
           <Card className="border-destructive/50">
             <CardContent className="pt-4 flex items-start gap-2 text-sm text-destructive" role="alert">
               <AlertTriangle className="w-4 h-4 mt-0.5 flex-shrink-0" />
-              <span>A campanha falhou: {campaign.error}</span>
+              <span>{t("cd.failed", { error: campaign.error })}</span>
             </CardContent>
           </Card>
         </motion.div>
@@ -175,9 +197,9 @@ export function CampaignDetail({ id }: { id: string }) {
         <motion.div variants={item}>
           <Card className="border-warning/50">
             <CardContent className="pt-4 flex flex-wrap items-center justify-between gap-2 text-sm">
-              <span className="flex items-center gap-2"><AlertTriangle className="w-4 h-4 text-warning" />{failedLeads.length} lead(s) falharam no processamento.</span>
+              <span className="flex items-center gap-2"><AlertTriangle className="w-4 h-4 text-warning" />{t("cd.failedLeads", { n: failedLeads.length })}</span>
               <Button size="sm" variant="outline" disabled={retrying} onClick={retryFailed}>
-                {retrying && <Loader2 className="mr-1 w-3 h-3 animate-spin" />}Tentar novamente
+                {retrying && <Loader2 className="mr-1 w-3 h-3 animate-spin" />}{t("common.retry")}
               </Button>
             </CardContent>
           </Card>
@@ -187,8 +209,7 @@ export function CampaignDetail({ id }: { id: string }) {
         <motion.div variants={item}>
           <Card>
             <CardContent className="pt-4 text-sm text-muted-foreground">
-              Nenhum lead novo foi encontrado. Pode ser que todos já estejam no seu CRM (a deduplicação ignora repetidos), que o filtro
-              &ldquo;somente sem site&rdquo; tenha descartado todos, ou que a busca tenha vindo vazia. Tente ampliar o raio ou mudar o nicho.
+              {t("cd.empty")}
             </CardContent>
           </Card>
         </motion.div>
@@ -199,34 +220,29 @@ export function CampaignDetail({ id }: { id: string }) {
           <Tabs defaultValue="list">
             <CardHeader className="pb-3">
               <div className="flex items-center justify-between">
-                <CardTitle className="text-base">Leads ({total})</CardTitle>
+                <CardTitle className="text-base">{t("cd.leadsTitle", { n: total })}</CardTitle>
                 <div className="flex items-center gap-2">
                   <TabsList>
                     <TabsTrigger value="list" className="text-xs">
-                      <List className="mr-1 w-3 h-3" />Lista
+                      <List className="mr-1 w-3 h-3" />{t("cd.list")}
                     </TabsTrigger>
                     <TabsTrigger value="map" className="text-xs">
-                      <MapIcon className="mr-1 w-3 h-3" />Mapa
+                      <MapIcon className="mr-1 w-3 h-3" />{t("cd.map")}
                     </TabsTrigger>
                   </TabsList>
                   <Select value={siteFilter} onValueChange={setSiteFilter}>
-                    <SelectTrigger className="h-8 w-36 text-xs" aria-label="Filtrar por situação do site"><SelectValue placeholder="Site" /></SelectTrigger>
+                    <SelectTrigger className="h-8 w-36 text-xs" aria-label={t("site.filterLabel")}><SelectValue placeholder={t("site.filterLabel")} /></SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="all">Todos os sites</SelectItem>
-                      <SelectItem value="NONE">Sem site</SelectItem>
-                      <SelectItem value="SOCIAL_ONLY">Só rede social</SelectItem>
-                      <SelectItem value="FREE_BUILDER">Site gratuito</SelectItem>
-                      <SelectItem value="DEAD">Site fora do ar</SelectItem>
-                      <SelectItem value="HAS_SITE">Tem site</SelectItem>
-                      <SelectItem value="UNKNOWN">Não confirmado</SelectItem>
+                      <SelectItem value="all">{t("site.allSites")}</SelectItem>
+                      {SITE_STATUSES.map((k) => <SelectItem key={k} value={k}>{t(SITE_META[k].key)}</SelectItem>)}
                     </SelectContent>
                   </Select>
                   <Select value={scoreFilter} onValueChange={setScoreFilter}>
-                    <SelectTrigger className="h-8 w-32 text-xs" aria-label="Filtrar por score"><SelectValue placeholder="Score" /></SelectTrigger>
+                    <SelectTrigger className="h-8 w-32 text-xs" aria-label={t("score.minLabel")}><SelectValue placeholder={t("score.label")} /></SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="all">Qualquer score</SelectItem>
-                      <SelectItem value="70">Quentes (70+)</SelectItem>
-                      <SelectItem value="45">Mornos (45+)</SelectItem>
+                      <SelectItem value="all">{t("score.any")}</SelectItem>
+                      <SelectItem value="70">{t("score.hot")}</SelectItem>
+                      <SelectItem value="45">{t("score.warm")}</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>

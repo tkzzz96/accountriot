@@ -18,6 +18,7 @@ import { Plus, Search, Megaphone, MapPin, Users, Star, MoreHorizontal, Loader2, 
 import { useCampaigns, type Campaign } from "@/hooks/use-campaigns";
 import { formatDate } from "@/lib/utils";
 import { api } from "@/lib/api";
+import { useI18n } from "@/lib/i18n";
 
 const container = {
   hidden: { opacity: 0 },
@@ -29,20 +30,22 @@ const item = {
 };
 
 function StatusBadge({ campaign }: { campaign: Campaign }) {
+  const { t } = useI18n();
   if (campaign.status === "running") return (
     <div className="flex items-center gap-1.5">
       <Loader2 className="w-3 h-3 animate-spin text-info" />
       <span className="text-xs text-info font-medium">{campaign.progress}%</span>
     </div>
   );
-  if (campaign.status === "completed") return <Badge variant="success">Completed</Badge>;
-  if (campaign.status === "failed") return <Badge variant="destructive">Failed</Badge>;
-  if (campaign.status === "draft") return <Badge variant="secondary">Draft</Badge>;
-  return <Badge variant="outline">{campaign.status}</Badge>;
+  if (campaign.status === "completed") return <Badge variant="success">{t("camp.statusCompleted")}</Badge>;
+  if (campaign.status === "failed") return <Badge variant="destructive">{t("camp.statusFailed")}</Badge>;
+  if (campaign.status === "draft") return <Badge variant="secondary">{t("camp.statusDraft")}</Badge>;
+  return <Badge variant="outline">{campaign.status === "paused" ? t("camp.statusPaused") : campaign.status}</Badge>;
 }
 
 export function CampaignsList() {
-  const { campaigns, loading } = useCampaigns();
+  const { campaigns, loading, error } = useCampaigns();
+  const { t } = useI18n();
   const [search, setSearch] = useState("");
 
   const filtered = campaigns.filter(
@@ -57,13 +60,14 @@ export function CampaignsList() {
       <div className="flex items-center gap-3">
         <div className="relative flex-1 max-w-sm">
           <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-          <Input placeholder="Search campaigns..." value={search} onChange={(e) => setSearch(e.target.value)} className="pl-8" />
+          <Input placeholder={t("camp.searchPlaceholder")} value={search} onChange={(e) => setSearch(e.target.value)} className="pl-8" />
         </div>
         <Button asChild variant="gradient" className="ml-auto">
-          <Link href="/campaigns/new"><Plus className="mr-2 h-4 w-4" />New Campaign</Link>
+          <Link href="/campaigns/new"><Plus className="mr-2 h-4 w-4" />{t("dash.newCampaign")}</Link>
         </Button>
       </div>
 
+      {error && <p role="alert" className="text-sm text-destructive">{t("camp.loadError")}</p>}
       {loading ? (
         <div className="space-y-2">
           {Array.from({ length: 4 }).map((_, i) => (
@@ -84,10 +88,10 @@ export function CampaignsList() {
         <Card>
           <CardContent className="py-16 text-center">
             <Megaphone className="w-10 h-10 text-muted-foreground mx-auto mb-3 opacity-50" />
-            <p className="font-medium">No campaigns found</p>
-            <p className="text-sm text-muted-foreground mb-4">Create your first campaign to start finding leads</p>
+            <p className="font-medium">{t("camp.empty")}</p>
+            <p className="text-sm text-muted-foreground mb-4">{t("camp.emptyHint")}</p>
             <Button asChild variant="gradient">
-              <Link href="/campaigns/new"><Plus className="mr-2 h-4 w-4" />New Campaign</Link>
+              <Link href="/campaigns/new"><Plus className="mr-2 h-4 w-4" />{t("dash.newCampaign")}</Link>
             </Button>
           </CardContent>
         </Card>
@@ -118,26 +122,26 @@ export function CampaignsList() {
                     <div className="flex items-center gap-4 text-center">
                       <div className="hidden sm:block">
                         <div className="flex items-center gap-1 justify-center"><Users className="w-3 h-3 text-muted-foreground" /><span className="text-sm font-semibold">{c.totalLeads}</span></div>
-                        <p className="text-xs text-muted-foreground">Leads</p>
+                        <p className="text-xs text-muted-foreground">{t("camp.leads")}</p>
                       </div>
                       <div className="hidden sm:block">
                         <div className="flex items-center gap-1 justify-center"><Star className="w-3 h-3 text-warning" /><span className="text-sm font-semibold">{c.priorityLeads}</span></div>
-                        <p className="text-xs text-muted-foreground">Priority</p>
+                        <p className="text-xs text-muted-foreground">{t("camp.priority")}</p>
                       </div>
                     </div>
                     <div className="flex items-center gap-1">
                       <DropdownMenu>
                         <DropdownMenuTrigger asChild>
-                          <Button variant="ghost" size="icon" className="h-8 w-8" onClick={(e) => e.stopPropagation()}>
+                          <Button variant="ghost" size="icon" className="h-8 w-8" aria-label={t("camp.actions")} onClick={(e) => e.stopPropagation()}>
                             <MoreHorizontal className="h-4 w-4" />
                           </Button>
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end">
                           <DropdownMenuItem asChild>
-                            <Link href={`/campaigns/${c.id}`}><Eye className="w-3.5 h-3.5 mr-1" />View details</Link>
+                            <Link href={`/campaigns/${c.id}`}><Eye className="w-3.5 h-3.5 mr-1" />{t("camp.viewDetails")}</Link>
                           </DropdownMenuItem>
                           <DropdownMenuItem onClick={() => api.download(`/export/leads/csv?campaignId=${c.id}`, `leads-${c.id}.csv`)}>
-                            <Download className="w-3.5 h-3.5 mr-1" />Export leads (CSV)
+                            <Download className="w-3.5 h-3.5 mr-1" />{t("camp.exportCsv")}
                           </DropdownMenuItem>
                         </DropdownMenuContent>
                       </DropdownMenu>

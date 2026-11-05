@@ -37,6 +37,7 @@ COPY --from=builder /app/apps/api/package.json ./apps/api/
 COPY --from=builder /app/packages/database ./packages/database
 COPY --from=builder /app/package.json ./
 COPY --from=builder /app/pnpm-workspace.yaml ./
+COPY --chmod=755 apps/api/docker-entrypoint.sh /app/apps/api/docker-entrypoint.sh
 
 # Install Playwright Chromium browser
 RUN pnpm --filter @prospex/api exec playwright install chromium
@@ -45,4 +46,4 @@ RUN addgroup --system prospex && adduser --system --ingroup prospex prospex
 USER prospex
 
 WORKDIR /app/apps/api
-CMD ["node", "dist/main"]
+ENTRYPOINT ["./docker-entrypoint.sh"]

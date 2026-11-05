@@ -23,18 +23,19 @@ Dono do projeto: Ryan (estrategista web/PM, fala português). Responda ao Ryan e
 8. Cada fase termina com: testes passando, `pnpm lint`, `pnpm build`, e commit próprio. Não iniciar a fase seguinte sem eu (Ryan) aprovar.
 
 ## Comandos (confirmados na Fase 0)
-- App local em um comando: `pnpm app` (start) / `pnpm app:stop` (scripts/start-local.sh; logs em .run/).
+- App local em um comando: `pnpm app` (start) / `pnpm app:stop` (scripts/start-local.sh; logs em .run/). Windows: `start.cmd` (usa o Git Bash).
 - `pnpm install` · `pnpm build` · `pnpm dev` (turbo: api 3001, web 3000, marketing 3002)
 - Banco: `pnpm --filter @prospex/database db:push` (dev) · `db:migrate` · `db:deploy` · `exec prisma generate`
 - Typecheck: `pnpm --filter @prospex/api exec tsc --noEmit` e `pnpm --filter @prospex/web exec tsc --noEmit`
-- Testes unitários: `pnpm test` (Vitest em apps/api, `src/**/*.spec.ts`). E2E Playwright: `pnpm test:e2e` (com api+web rodando).
+- Testes unitários: `pnpm test` (Vitest em apps/api e apps/mcp, `src/**/*.spec.ts`). Integração com Postgres real: `RUN_INTEGRATION=1 DATABASE_URL=… pnpm --filter @prospex/api exec vitest run src/pipeline/pipeline.int.spec.ts` (pulado sem as variáveis). E2E Playwright: `pnpm test:e2e` (com api+web rodando; UI em pt-BR).
 - Smoke ponta a ponta: `DISCOVERY_DRIVER=mock node apps/api/dist/main` + `scripts/smoke.sh 100`.
 - Lint: `pnpm lint` (eslint flat config em cada app; regras React-Compiler como warning).
 - Descoberta: `DISCOVERY_DRIVER=gosom|places|playwright|mock` (ver .env.example).
 - Env: copiar `.env.example` para `apps/api/.env` e `packages/database/.env` (JWT_SECRET, ENCRYPTION_KEY obrigatórios).
 - Sem Docker (ambiente cloud): Postgres 16 e Redis nativos (`service postgresql start`, `redis-server --daemonize yes`).
 - gosom: `docker compose -f infra/docker-compose.gosom.yml up -d` (REST em :8080). Binário local: `go build` em `vendor-ref/google-maps-scraper`.
-- MCP: `pnpm --filter @prospex/mcp build` (apps/mcp). Guia de uso: `docs/PROSPECTOR.md`.
+- MCP: `pnpm --filter @prospex/mcp build` (apps/mcp; autentica com `PROSPECTOR_API_KEY=px_…`). Guia de uso: `docs/PROSPECTOR.md`.
+- Auth: cookie `httpOnly` + CSRF (web), `Authorization: Bearer` (scripts), `Authorization: ApiKey px_…` (integrações; escopo de workspace, sem usuário). Idiomas: pt-BR (padrão) e en em `apps/web/src/locales` (o tipo exige as mesmas chaves nos dois).
 - E2E local: `PW_CHROMIUM_PATH=<chrome> THROTTLE_LIMIT=5000 AUTH_THROTTLE_LIMIT=5000 scripts/restart-api.sh` + `next start` + `pnpm test:e2e`.
 - Health: `curl localhost:3001/api/health`. Base importada do Prospex; CLAUDE.md original em `docs/PROSPEX_CLAUDE.md`.
 

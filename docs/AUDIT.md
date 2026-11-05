@@ -4,7 +4,7 @@ Escopo: todo o repositório (API NestJS, web Next.js, banco/Prisma, pipeline, sc
 Método: auditoria manual + **7 rodadas** de revisão independente (`code-review`, nível *high*) sobre cada conjunto de correções,
 cada rodada validada com testes unitários, lint, build, e2e (Playwright) e verificação de migrações num banco limpo.
 
-Legenda: ✅ feito e verificado · 🟡 parcial / decisão registrada · ⬜ pendente (precisa de decisão, ambiente ou dependência externa)
+Legenda: ✅ feito e verificado · 🟡 parcial / decisão registrada · ⬜ pendente (precisa de decisão, ambiente ou dependência externa) · `[~]` = parcialmente feito
 
 ---
 
@@ -25,10 +25,10 @@ Legenda: ✅ feito e verificado · 🟡 parcial / decisão registrada · ⬜ pen
 - [x] ✅ **Headers de segurança no web** (`nosniff`, `X-Frame-Options`, `Referrer-Policy`, `Permissions-Policy`).
 - [x] ✅ **CORS** aceita loopback em qualquer porta (corrige "Failed to fetch") sem abrir para origens externas.
 - [x] ✅ **Launcher não executa o `.env`** (antes `source`): parser seguro (aspas, comentários, escapes estilo dotenv).
-- [ ] ⬜ Token JWT em `localStorage` (exposto a XSS) → cookie `httpOnly` + CSRF (muda API e web).
-- [ ] ⬜ TTL de 30 dias sem refresh token → TTL curto + refresh.
-- [ ] ⬜ CSP estrita (tiles de mapa e miniaturas são de terceiros; exige allowlist).
-- [ ] ⬜ API keys (`px_…`) existem mas não autenticam a REST → usar no MCP no lugar de e-mail/senha.
+- [x] ✅ **Sessão em cookie `httpOnly`** (`prospector_session`) + CSRF *double-submit* (`prospector_csrf` / `x-csrf-token`, exigido só em chamadas com cookie e método não seguro); nada de token em `localStorage`; filiação ao workspace revalidada a cada requisição; CORS com credenciais só para origens permitidas. Testes unitários (guard, sessão) + e2e (cookie httpOnly, CSRF 403/201).
+- [x] ✅ **TTL curto com renovação deslizante**: `JWT_EXPIRES_IN` (padrão 7d); o guard reemite o cookie quando ele tem mais de 1 dia. (Em vez de um refresh token separado: menos superfície, mesmo efeito para sessão de navegador.)
+- [x] ✅ **CSP** no web: `default-src 'self'`, `object-src 'none'`, `frame-ancestors 'none'`, `connect-src` só o próprio site + a API; `img-src https:` (tiles OSM e miniaturas são de terceiros por desenho e nunca são armazenados); `script-src` exige `'unsafe-inline'` por causa do bootstrap do Next (nonce forçaria renderização dinâmica de todas as páginas). Coberto por e2e.
+- [x] ✅ **API keys (`Authorization: ApiKey px_…`) autenticam a REST**, escopo = workspace, sem identidade de usuário (endpoints só-de-usuário respondem 403); o MCP usa `PROSPECTOR_API_KEY` (e-mail/senha continua como alternativa). Criar/excluir chaves e mexer em integrações exige owner/admin.
 
 ### B. Bugs de lógica / corretude
 - [x] ✅ **Fabricação de leads falsos**: o caminho legado do Prospex inventava leads quando o scraping falhava (violava "nenhum dado inventado") → caminho legado removido (código, módulo `ai/`, colunas derivadas do filtro).
@@ -47,7 +47,7 @@ Legenda: ✅ feito e verificado · 🟡 parcial / decisão registrada · ⬜ pen
 - [x] ✅ Retry de página truncada preserva a melhor versão e registra "contatos podem estar incompletos"; para o crawl do host após falha dupla.
 - [x] ✅ `contactability` com expressão sem efeito removida.
 - [x] ✅ Lançador: processo antigo ocupando a porta era mascarado pelo health check; `stop` deixava `next-server` órfão; `set -e` matava o script sem pidfile.
-- [ ] ⬜ Verificação SMTP de e-mail, caminho LLM de rascunhos, gosom real e Places API **nunca foram executados contra serviços reais** (sem rede/chave neste ambiente).
+- [~] 🟡 Verificação SMTP, caminho LLM, gosom e Places agora têm testes contra **servidores falsos** (SMTP que nunca recebe `DATA`, API do gosom, Places com `fetch` simulado, cliente LLM injetável). Falta rodar contra os **serviços reais** (depende de rede/chave — ver F).
 
 ### C. Backend / estrutura / banco
 - [x] ✅ Índices Postgres nos acessos reais (campanha+etapa, workspace+site/score/crm, atividades, follow-ups).
@@ -56,9 +56,9 @@ Legenda: ✅ feito e verificado · 🟡 parcial / decisão registrada · ⬜ pen
 - [x] ✅ Validação de configuração (Joi) para as variáveis novas.
 - [x] ✅ Constantes/tipos compartilhados (sem import circular serviço↔processador).
 - [x] ✅ Migrações: nunca reescrever uma migração já commitada (a corretiva é idempotente); verificado `migrate deploy` num banco vazio == schema.
-- [ ] ⬜ Teste de integração do pipeline com Postgres/Redis no CI (hoje coberto por e2e + smoke).
-- [ ] ⬜ Limpeza de referências por workspace ao excluir workspace (não existe exclusão de workspace ainda).
-- [ ] ⬜ Observabilidade: logs estruturados, métricas, orçamento/limite de custo do LLM por workspace.
+- [x] ✅ Teste de integração do pipeline com **Postgres real** (`pipeline.int.spec.ts`: descoberta→READY, dedupe, retry, ações em lote, isolamento entre workspaces); roda no CI com `RUN_INTEGRATION=1` e é pulado localmente sem banco.
+- [x] ✅ `DELETE /workspace` (só o dono, confirmando o *slug* digitado) apaga leads, campanhas, chaves, integrações **e as referências do workspace**; botão real na UI.
+- [x] ✅ Observabilidade: log de acesso JSON com `X-Request-Id` (sem corpo/query), `GET /ops/stats` (etapas, situação do site, filas, uso de IA); **limite diário de rascunhos com IA por workspace** (`LLM_DAILY_DRAFT_LIMIT`) — acima dele usa o modelo de texto padrão; chave de IA do workspace agora é de fato usada pelo backend. (Métricas Prometheus ficam fora de escopo: sem consumidor definido.)
 
 ### D. Front-end / UX
 - [x] ✅ Debounce da busca estava quebrado (um timer por tecla).
@@ -70,17 +70,17 @@ Legenda: ✅ feito e verificado · 🟡 parcial / decisão registrada · ⬜ pen
 - [x] ✅ Evidência do site traduzida por código estável (`siteEvidence.code`).
 - [x] ✅ Acessibilidade: labels nos filtros, `role="alert"`, `alt` nas referências, `aria-label` nos links.
 - [x] ✅ Telas do fluxo do prospector em pt-BR.
-- [ ] ⬜ i18n completo (Dashboard, Analytics, Integrations, Settings seguem em inglês) → adotar biblioteca de i18n.
-- [ ] ⬜ Kanban de CRM dedicado e ações em lote.
+- [x] ✅ **i18n completo** (pt-BR padrão + en) com provedor próprio e catálogo tipado (a versão em inglês não compila se faltar chave); troca de idioma no menu do usuário. Textos gerados pelo backend (pesos do score) continuam em pt-BR.
+- [x] ✅ **Kanban de CRM** (`/crm`: arrastar e soltar + seletor acessível por teclado, com reversão em caso de erro) e **ações em lote** na lista (mover status / excluir, até 200). Também: filtros e página na URL, paginação, notas do lead, exclusão de lead (LGPD) e exportar ao webhook de CRM (`LEAD_WEBHOOK_URL`, assinado com HMAC; o rascunho segue como rascunho).
 
 ### E. Infra / CI / docs / testes
 - [x] ✅ CI: `pnpm lint`, typecheck do MCP, testes unitários da API **e do MCP**, driver `mock` no e2e.
 - [x] ✅ Compose de produção com o gosom isolado + variáveis de descoberta; YAML validado.
 - [x] ✅ `.gitignore` (resultados do Playwright, relatórios, dump do Redis, `.run/`); `.env.example` completo.
-- [x] ✅ Testes: de 111 → **298 unitários** + 4 do MCP + **29 e2e** (todos passando); suíte de segurança "nenhum código envia mensagens".
-- [ ] ⬜ Imagens Docker (api/web) e o fluxo 100% Docker **não foram testados** (sem daemon aqui); aplicar migrações automaticamente no start do container.
-- [ ] ⬜ Launcher no **Windows/macOS** só validado em Linux.
-- [ ] ⬜ Dependabot/Renovate e `pnpm audit` no CI.
+- [x] ✅ Testes: de 111 → **342 unitários** (+5 de integração com Postgres) + 6 do MCP + **42 e2e** (2 *skip* de exportação); suíte de segurança "nenhum código envia mensagens".
+- [~] 🟡 Container da API aplica `prisma migrate deploy` ao iniciar (`RUN_MIGRATIONS=false` desliga); instalação `--frozen-lockfile` dos estágios `deps` simulada para api e web. **Falta** `docker build`/`compose up` de verdade (sem daemon aqui).
+- [~] 🟡 `start.cmd` (Windows → Git Bash) adicionado; launcher segue validado só em Linux — falta testar no Windows/macOS.
+- [x] ✅ Dependabot (npm agrupado, Actions, Docker) e `pnpm audit --audit-level=critical` no CI. Dependências atualizadas (Next 16.4.1, Vitest 4, Joi, SDK do MCP…) + `pnpm.overrides` com faixas *caret*: **87 → 7 avisos, 0 críticos/altos**. Restam só 3 *low* + 4 *moderate* em ferramentas de build (`@nestjs/cli`, ESLint) e no `@nestjs/core` 10 (corrigir exige migrar para Nest 11 — fora de escopo, ver backlog).
 
 ### F. Produto (fora do que dá para fechar só com código)
 - [ ] ⬜ Rodada real 1 cidade × 1 nicho (gosom ou Places) para calibrar pesos de score e filtros.
@@ -96,9 +96,9 @@ Legenda: ✅ feito e verificado · 🟡 parcial / decisão registrada · ⬜ pen
 | **P0 – Crítico (segurança/dados)** | A: SSRF, isolamento de tenants, revogação, escalada de privilégio, referências, CSV, prompt injection · B: fabricação de leads | ✅ concluída | testes unitários (SSRF, DTOs, CSV, sanitização) + e2e |
 | **P1 – Corretude do pipeline** | B: retry, dedupe, double-start, `startedAt`, ordenação, país, DNS/falso "sem site", truncamento, rate limit, gosom | ✅ concluída | testes unitários + smoke + e2e + `migrate deploy` limpo |
 | **P2 – Estrutura e banco** | C: índices, lista leve, filtros/endpoints, Joi, constantes, política de migrações | ✅ concluída | `prisma migrate diff` == schema; build/lint |
-| **P3 – Front-end** | D: debounce, filtros, totais, falhas/retry, erros de rede, polling, i18n do fluxo, a11y | ✅ concluída | e2e (29) + tsc + lint |
+| **P3 – Front-end** | D: debounce, filtros, totais, falhas/retry, erros de rede, polling, i18n do fluxo, a11y | ✅ concluída | e2e + tsc + lint |
 | **P4 – Infra/CI/docs** | E: CI, compose, gitignore, docs, testes | ✅ concluída (exceto Docker real) | YAML válido, CI atualizado |
-| **P5 – Endurecimento (próximo)** | A: cookie `httpOnly`+CSRF, refresh token, API keys no MCP, CSP · C: integração com DB no CI, observabilidade/limites de custo, limpeza por workspace · D: i18n completo, kanban | ⬜ backlog | decisão de produto + 1–2 dias de trabalho |
+| **P5 – Endurecimento** | A: cookie `httpOnly`+CSRF, sessão deslizante, API keys (REST + MCP), CSP · C: integração com DB no CI, observabilidade/limite de custo do LLM, exclusão de workspace · D: i18n completo, kanban, lote · E: Dependabot, audit no CI, migrações no start do container | ✅ concluída | unitários (342) + integração (Postgres) + e2e (42) + `pnpm audit` sem críticos/altos + build/lint |
 | **P6 – Validação em ambiente real** | B/E/F: gosom/Places/LLM/SMTP reais, Docker de ponta a ponta, launcher Windows/macOS, rodada real 1 cidade × 1 nicho, calibração de score, revisão do tom | ⬜ depende de você | rodar na sua máquina e me enviar logs/erros |
 
 ---
@@ -125,3 +125,6 @@ Continuar o loop agora só geraria churn, não qualidade.
 - **Migrações são imutáveis** depois de commitadas; correções entram como novas migrações idempotentes.
 - **Referências**: seed global é somente leitura; edições são por workspace; poda do seed é opt-in (`REFERENCE_PRUNE_SEED`).
 - **Mensagens**: continuam sendo apenas rascunhos; existe teste que falha se qualquer código de envio for adicionado.
+- **Sessão**: cookie `httpOnly` + CSRF *double-submit*; Bearer e `ApiKey` não precisam de CSRF (o navegador nunca os anexa sozinho). API key = escopo de workspace, sem usuário.
+- **Overrides do pnpm** sempre com faixa *caret* (`^x.y.z`): uma faixa `>=` pode saltar de major (isso quase trocou `brace-expansion@1` pela 5.x e quebraria o `minimatch@3`).
+- **Backlog consciente**: migrar Nest 10 → 11 (fecha o último *moderate* do `@nestjs/core`); Behance/Dribbble (sem API pública de busca) e sync direto com o Twenty (hoje via webhook).

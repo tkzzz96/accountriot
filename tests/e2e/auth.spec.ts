@@ -1,64 +1,90 @@
-import { test, expect, TEST_USER, loginOnly } from "./fixtures";
+import { test, expect, TEST_USER, loginOnly, API } from "./fixtures";
 
 test.describe("Auth", () => {
-  // Uses the authedPage fixture → register + login happens automatically
   test("register creates account and redirects to dashboard", async ({ authedPage: page }) => {
     await expect(page).toHaveURL("/dashboard");
-    // Sidebar should show workspace name
     await expect(page.getByText(TEST_USER.workspace)).toBeVisible();
   });
 
   test("login with correct credentials redirects to dashboard", async ({ authedPage: page }) => {
-    // Log out first
     await page.getByRole("button", { name: TEST_USER.email, exact: false }).click();
-    await page.getByRole("menuitem", { name: "Sign out" }).click();
+    await page.getByRole("menuitem", { name: "Sair" }).click();
     await page.waitForURL("/login");
-
-    // Log back in
     await loginOnly(page, TEST_USER);
     await expect(page).toHaveURL("/dashboard");
   });
 
-  test("login with wrong password shows error", async ({ page }) => {
+  test("login with wrong password shows error and stays on /login", async ({ page }) => {
     await page.goto("/login");
     await page.fill("#email", TEST_USER.email);
     await page.fill("#password", "WrongPassword999!");
     await page.click('button[type="submit"]');
-
-    // Error message should appear, URL should stay on /login
-    await expect(page.locator("text=Invalid credentials").or(page.locator('[class*="text-red"]'))).toBeVisible({ timeout: 5000 });
+    await expect(page.locator('[class*="text-red"]').first()).toBeVisible({ timeout: 5000 });
     await expect(page).toHaveURL("/login");
   });
 
-  test("accessing /dashboard without token redirects to /login", async ({ page }) => {
-    // Clear any stored token
-    await page.goto("/login");
-    await page.evaluate(() => localStorage.removeItem("prospex_token"));
-
+  test("accessing /dashboard without a session redirects to /login", async ({ page }) => {
     await page.goto("/dashboard");
-    await page.waitForURL("/login", { timeout: 5000 });
-    await expect(page).toHaveURL("/login");
+    await page.waitForURL("/login", { timeout: 8000 });
   });
 
-  test("logout clears session and redirects to /login", async ({ authedPage: page }) => {
+  test("logout clears the session", async ({ authedPage: page }) => {
     await page.getByRole("button", { name: TEST_USER.email, exact: false }).click();
-    await page.getByRole("menuitem", { name: "Sign out" }).click();
+    await page.getByRole("menuitem", { name: "Sair" }).click();
     await page.waitForURL("/login");
-    await expect(page).toHaveURL("/login");
-
-    // Token should be gone — /dashboard should redirect again
     await page.goto("/dashboard");
-    await page.waitForURL("/login", { timeout: 5000 });
+    await page.waitForURL("/login", { timeout: 8000 });
+  });
+
+  test("the session lives in an httpOnly cookie, never in localStorage", async ({ authedPage: page, context }) => {
+    const cookies = await context.cookies();
+    const session = cookies.find((c) => c.name === "prospector_session");
+    const csrf = cookies.find((c) => c.name === "prospector_csrf");
+    expect(session?.httpOnly).toBe(true);
+    expect(csrf?.httpOnly).toBe(false);
+    const stored = await page.evaluate(() => JSON.stringify({ ...localStorage }));
+    expect(stored).not.toContain("token");
+    expect(await page.evaluate(() => document.cookie)).not.toContain("prospector_session");
   });
 });
 
-// Standalone tests — use the extended `test` but with plain `page` (no authedPage)
+test.describe("CSRF, Bearer and security headers", () => {
+  test("a cookie-authenticated POST without the CSRF header is rejected, with it is accepted", async ({ authedPage: page, context }) => {
+    const csrf = (await context.cookies()).find((c) => c.name === "prospector_csrf")!.value;
+    const blocked = await page.request.post(`${API}/settings/api-keys`, { data: { name: "csrf-probe" } });
+    expect(blocked.status()).toBe(403);
+    const ok = await page.request.post(`${API}/settings/api-keys`, { data: { name: "csrf-probe" }, headers: { "x-csrf-token": csrf } });
+    expect(ok.status()).toBe(201);
+  });
+
+  test("GET with the cookie needs no CSRF header; unauthenticated GET is 401", async ({ authedPage: page, playwright }) => {
+    expect((await page.request.get(`${API}/auth/me`)).status()).toBe(200);
+    const anon = await playwright.request.newContext();
+    expect((await anon.get(`${API}/leads`)).status()).toBe(401);
+    await anon.dispose();
+  });
+
+  test("the web app is served with a Content-Security-Policy that blocks framing and plugins", async ({ page }) => {
+    const res = await page.goto("/login");
+    const csp = res!.headers()["content-security-policy"];
+    expect(csp).toContain("frame-ancestors 'none'");
+    expect(csp).toContain("object-src 'none'");
+    expect(csp).toContain("connect-src 'self'");
+  });
+
+  test("API responses carry a request id", async ({ authedPage: page }) => {
+    const res = await page.request.get(`${API}/auth/me`);
+    expect(res.headers()["x-request-id"]).toBeTruthy();
+  });
+});
+
 test.describe("Public routes", () => {
   test("/login page renders", async ({ page }) => {
     await page.goto("/login");
     await expect(page.locator("#email")).toBeVisible();
     await expect(page.locator("#password")).toBeVisible();
     await expect(page.locator('button[type="submit"]')).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Bem-vindo de volta" })).toBeVisible();
   });
 
   test("/register page renders", async ({ page }) => {

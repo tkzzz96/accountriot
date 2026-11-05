@@ -1,86 +1,77 @@
-import { test, expect } from "./fixtures";
+import { test, expect, ensureLeads } from "./fixtures";
 
 test.describe("Leads", () => {
+  test.beforeEach(async ({ authedPage: page }) => {
+    await ensureLeads(page);
+  });
+
   test("leads list page loads", async ({ authedPage: page }) => {
     await page.goto("/leads");
-    await expect(page.getByRole("heading", { name: /leads/i })).toBeVisible();
-    await expect(page.getByPlaceholder("Buscar leads...")).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Leads", exact: true })).toBeVisible();
+    await expect(page.getByRole("textbox", { name: "Buscar leads", exact: true })).toBeVisible();
   });
 
-  test("search filter narrows results", async ({ authedPage: page }) => {
+  test("search narrows results and is kept in the URL", async ({ authedPage: page }) => {
     await page.goto("/leads");
-
-    const searchInput = page.getByPlaceholder("Buscar leads...");
-    // Search for something that will not match anything
-    await searchInput.fill("__no_match_xyz_12345__");
-    // Table should show empty state or 0 rows
-    const rows = page.locator("table tbody tr, [data-testid='lead-row']");
-    const count = await rows.count();
-    expect(count).toBe(0);
-
-    // Clear search — rows should reappear (if leads exist)
-    await searchInput.clear();
+    await expect(page.locator("a[href^='/leads/']").first()).toBeVisible({ timeout: 10000 });
+    await page.getByRole("textbox", { name: "Buscar leads", exact: true }).fill("__no_match_xyz_12345__");
+    await expect(page.getByText("Nenhum lead encontrado")).toBeVisible({ timeout: 8000 });
+    await expect(page).toHaveURL(/q=__no_match_xyz_12345__/);
   });
 
-  test("priority filter works", async ({ authedPage: page }) => {
-    await page.goto("/leads");
-
-    // Click priority filter
-    await page.locator('button:has-text("Todas as prioridades"), [placeholder="Priority"]').first().click();
-    await page.locator('[role="option"]:has-text("Alta")').click();
-
-    // URL or UI state changed — just verify no crash
-    await expect(page.locator("body")).toBeVisible();
+  test("the header search jumps to the filtered leads list", async ({ authedPage: page }) => {
+    await page.goto("/dashboard");
+    await page.getByRole("search").getByRole("textbox").fill("barbearia");
+    await page.keyboard.press("Enter");
+    await page.waitForURL(/\/leads\?q=barbearia/);
+    await expect(page.locator("a[href^='/leads/']").first()).toBeVisible({ timeout: 10000 });
   });
 
   test("site status filter narrows the list to leads without a site", async ({ authedPage: page }) => {
     await page.goto("/leads");
     await page.getByLabel("Situação do site").click();
-    await page.locator('[role="option"]:has-text("Sem site")').click();
-    // every visible lead row shows the "Sem site" badge
+    await page.getByRole("option", { name: "Sem site" }).click();
+    await expect(page).toHaveURL(/siteStatus=NONE/);
     await expect(page.locator("a[href^='/leads/']").first()).toBeVisible({ timeout: 10000 });
     await expect(page.getByText("Tem site", { exact: true })).toHaveCount(0);
   });
 
-  test("lead detail page opens from list", async ({ authedPage: page }) => {
+  test("lead detail opens from the list and shows the prospector card", async ({ authedPage: page }) => {
     await page.goto("/leads");
-
-    const firstLeadLink = page.locator("a[href*='/leads/']").first();
-    const hasLeads = await firstLeadLink.isVisible({ timeout: 5000 }).catch(() => false);
-
-    if (!hasLeads) {
-      test.skip(); // No leads in DB yet — skip gracefully
-      return;
-    }
-
-    await firstLeadLink.click();
-    await page.waitForURL(/\/leads\/[a-z0-9-]+$/);
-    await expect(page.locator("h1, h2")).toBeVisible();
+    await page.locator("a[href^='/leads/']").first().click();
+    await page.waitForURL(/\/leads\/[a-z0-9]+$/);
+    await expect(page.getByTestId("prospector-card")).toBeVisible({ timeout: 15000 });
   });
 
-  test("update CRM status on lead detail", async ({ authedPage: page }) => {
+  test("update CRM status on the lead detail page", async ({ authedPage: page }) => {
     await page.goto("/leads");
+    await page.locator("a[href^='/leads/']").first().click();
+    await page.waitForURL(/\/leads\/[a-z0-9]+$/);
+    await page.getByRole("combobox").first().click();
+    await page.getByRole("option", { name: "Contatado" }).click();
+    await page.getByRole("button", { name: "Atualizar status" }).click();
+    await expect(page.getByText("Status atualizado").first()).toBeVisible({ timeout: 8000 });
+  });
 
-    const firstLeadLink = page.locator("a[href*='/leads/']").first();
-    const hasLeads = await firstLeadLink.isVisible({ timeout: 5000 }).catch(() => false);
-    if (!hasLeads) { test.skip(); return; }
+  test("bulk action moves several leads at once", async ({ authedPage: page }) => {
+    await page.goto("/leads");
+    await expect(page.locator("a[href^='/leads/']").first()).toBeVisible({ timeout: 10000 });
+    await page.getByTestId("select-all").check();
+    await expect(page.getByTestId("bulk-bar")).toBeVisible();
+    await page.getByTestId("bulk-status").click();
+    await page.getByRole("option", { name: "Respondeu" }).click();
+    await expect(page.getByText(/lead\(s\) atualizado\(s\)/).first()).toBeVisible({ timeout: 8000 });
+    await page.goto("/leads?status=replied");
+    await expect(page.locator("a[href^='/leads/']").first()).toBeVisible({ timeout: 10000 });
+  });
 
-    await firstLeadLink.click();
-    await page.waitForURL(/\/leads\/[a-z0-9-]+$/);
-
-    // Find CRM status select/button and change it
-    const crmSelect = page.locator('[id="crm-status"], button:has-text("New"), button:has-text("Contacted")').first();
-    if (await crmSelect.isVisible()) {
-      await crmSelect.click();
-      await page.locator('[role="option"]:has-text("Contacted")').click();
-
-      // Update button
-      const updateBtn = page.locator('button:has-text("Update CRM")');
-      if (await updateBtn.isVisible()) {
-        await updateBtn.click();
-        // Should not show error
-        await expect(page.locator("text=error").or(page.locator(".text-red-400"))).not.toBeVisible({ timeout: 3000 });
-      }
-    }
+  test("bulk delete asks for confirmation and removes the selected leads", async ({ authedPage: page }) => {
+    await page.goto("/leads?status=replied");
+    await expect(page.locator("a[href^='/leads/']").first()).toBeVisible({ timeout: 10000 });
+    page.once("dialog", (d) => void d.accept());
+    await page.getByTestId("select-all").check();
+    await page.getByTestId("bulk-delete").click();
+    await expect(page.getByText(/lead\(s\) excluído\(s\)/).first()).toBeVisible({ timeout: 8000 });
+    await expect(page.getByText("Nenhum lead encontrado")).toBeVisible({ timeout: 8000 });
   });
 });

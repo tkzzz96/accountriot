@@ -47,7 +47,7 @@ Sem Docker: Postgres 16 e Redis nativos + `DISCOVERY_DRIVER=mock` para dados fic
 Provedor padrão = tabela curada (`GET/POST /api/references`); o seed inicial é **ponto de partida** — troque pelas suas referências favoritas. Pinterest só com API oficial (flag). Behance/Dribbble não têm API pública de busca (ver `apps/api/src/references/README.md`).
 
 ## MCP (opcional)
-`pnpm --filter @prospex/mcp build` e registre `node apps/mcp/dist/index.js` no seu cliente MCP com `PROSPECTOR_EMAIL`, `PROSPECTOR_PASSWORD`, `PROSPECTOR_API_URL`. Ferramentas: `create_campaign`, `list_leads`, `get_lead`, `regenerate_draft`.
+`pnpm --filter @prospex/mcp build` e registre `node apps/mcp/dist/index.js` no seu cliente MCP com `PROSPECTOR_API_KEY` (recomendado: crie em Configurações → IA e chaves de API; começa com `px_`, vale só para o seu workspace) e `PROSPECTOR_API_URL`. Alternativa: `PROSPECTOR_EMAIL` + `PROSPECTOR_PASSWORD`. Ferramentas: `create_campaign`, `list_leads`, `get_lead`, `regenerate_draft`.
 
 ## Testes
 `pnpm test` (Vitest: classificador, score, contatos, robots, rascunhos, referências, segurança "sem envio") · `pnpm test:e2e` (Playwright, exige API com `DISCOVERY_DRIVER=mock` e `THROTTLE_LIMIT` alto) · `scripts/smoke.sh 100`.

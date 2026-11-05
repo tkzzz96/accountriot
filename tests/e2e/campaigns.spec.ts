@@ -11,7 +11,7 @@ const CAMPAIGN = {
 test.describe("Campaigns", () => {
   test("campaigns list page loads", async ({ authedPage: page }) => {
     await page.goto("/campaigns");
-    await expect(page.getByRole("heading", { name: /campaigns/i })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Campanhas" })).toBeVisible();
   });
 
   test("create campaign form renders the prospector filter", async ({ authedPage: page }) => {
@@ -32,7 +32,7 @@ test.describe("Campaigns", () => {
 
     await page.waitForURL(/\/campaigns\/(?!new$)[a-z0-9-]+$/, { timeout: 15000 });
     await expect(page.getByText(CAMPAIGN.name)).toBeVisible();
-    await expect(page.getByText("Completed")).toBeVisible({ timeout: 90000 });
+    await expect(page.getByText("Concluída")).toBeVisible({ timeout: 90000 });
 
     // Open the first lead of the campaign
     await page.locator("a[href^='/leads/']").first().click();
@@ -53,7 +53,7 @@ test.describe("Campaigns", () => {
     await page.goto("/campaigns");
 
     // Find first completed campaign and click it
-    const completedBadge = page.locator("text=Completed").first();
+    const completedBadge = page.getByText("Concluída").first();
     await expect(completedBadge).toBeVisible({ timeout: 10000 });
 
     // Click the campaign row/card. Excludes the ever-present "New Campaign"
@@ -66,5 +66,17 @@ test.describe("Campaigns", () => {
     const leadsText = await page.locator("text=/Leads \\(\\d+\\)/").textContent();
     const count = parseInt(leadsText?.match(/\d+/)?.[0] ?? "0");
     expect(count).toBeGreaterThan(0);
+  });
+});
+
+test.describe("Campaign actions", () => {
+  test("a completed campaign can be run again (dedupe keeps the lead count)", async ({ authedPage: page }) => {
+    await page.goto("/campaigns");
+    await page.locator("a[href^='/campaigns/']:not([href='/campaigns/new'])").first().click();
+    await page.waitForURL(/\/campaigns\/(?!new$)[a-z0-9-]+$/);
+    page.once("dialog", (d) => void d.accept());
+    await page.getByTestId("rerun-campaign").click();
+    await expect(page.getByText("Campanha reiniciada").first()).toBeVisible({ timeout: 8000 });
+    await expect(page.getByText("Concluída").first()).toBeVisible({ timeout: 90000 });
   });
 });

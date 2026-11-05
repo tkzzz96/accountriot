@@ -51,3 +51,19 @@ export async function loginOnly(page: Page, user: typeof TEST_USER): Promise<voi
   await page.click('button[type="submit"]');
   await page.waitForURL("/dashboard", { timeout: 15000 });
 }
+
+export const API = "http://localhost:3001/api";
+
+let seeded = false;
+/** Creates one mock-driver campaign and waits until it completes, so list/CRM tests have leads. Runs once per test run. */
+export async function ensureLeads(page: Page): Promise<void> {
+  if (seeded) return;
+  await page.goto("/campaigns/new");
+  await page.fill("#name", `E2E Seed ${RUN_ID}`);
+  await page.getByTestId("niche-input").fill("barbearia");
+  await page.getByTestId("city-input").fill("Curitiba");
+  await page.click('button[type="submit"]');
+  await page.waitForURL(/\/campaigns\/(?!new$)[a-z0-9-]+$/, { timeout: 15000 });
+  await expect(page.getByText("Concluída").first()).toBeVisible({ timeout: 90000 });
+  seeded = true;
+}

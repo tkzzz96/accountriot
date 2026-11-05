@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { ProspectorClient } from "./client";
+import { ProspectorClient, configFromEnv } from "./client";
 import { createCampaign, listLeads, summarizeLead } from "./tools";
 
 function fakeFetch(routes: Record<string, (body: unknown) => unknown>, log: string[] = []): typeof fetch {
@@ -52,5 +52,25 @@ describe("mcp tools", () => {
       return new Response(calls < 2 ? "no" : JSON.stringify({ ok: true }), { status: calls < 2 ? 401 : 200 });
     }) as unknown as typeof fetch;
     expect(await new ProspectorClient(cfg, f).request("GET", "/x")).toEqual({ ok: true });
+  });
+});
+
+describe("auth modes", () => {
+  it("configFromEnv prefers PROSPECTOR_API_KEY and validates its prefix", () => {
+    expect(configFromEnv({ PROSPECTOR_API_KEY: "px_abc", PROSPECTOR_EMAIL: "a@b.c", PROSPECTOR_PASSWORD: "p" })).toEqual({ baseUrl: "http://localhost:3001/api", apiKey: "px_abc" });
+    expect(() => configFromEnv({ PROSPECTOR_API_KEY: "sk-nope" })).toThrow(/px_/);
+    expect(configFromEnv({ PROSPECTOR_EMAIL: "a@b.c", PROSPECTOR_PASSWORD: "p", PROSPECTOR_API_URL: "http://h/api/" })).toMatchObject({ baseUrl: "http://h/api", email: "a@b.c" });
+    expect(() => configFromEnv({})).toThrow(/PROSPECTOR_API_KEY/);
+  });
+
+  it("with an API key it sends 'ApiKey …', never logs in, and does not retry on 401", async () => {
+    const seen: Array<{ path: string; auth: string | null }> = [];
+    const f = (async (url: string, init?: RequestInit) => {
+      seen.push({ path: new URL(url).pathname, auth: new Headers(init?.headers).get("authorization") });
+      return new Response("denied", { status: 401 });
+    }) as unknown as typeof fetch;
+    const c = new ProspectorClient({ baseUrl: "http://x/api", apiKey: "px_k" }, f);
+    await expect(c.request("GET", "/leads")).rejects.toThrow(/401/);
+    expect(seen).toEqual([{ path: "/api/leads", auth: "ApiKey px_k" }]);
   });
 });

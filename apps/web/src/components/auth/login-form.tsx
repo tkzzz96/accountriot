@@ -8,10 +8,12 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardFooter } from "@/components/ui/card";
 import { Loader2, AlertCircle } from "lucide-react";
 import { useAuth } from "@/hooks/use-auth";
+import { useI18n } from "@/lib/i18n";
 
 export function LoginForm() {
   const router = useRouter();
   const { login } = useAuth();
+  const { t } = useI18n();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [fieldErrors, setFieldErrors] = useState<{ email?: string; password?: string }>({});
@@ -20,8 +22,8 @@ export function LoginForm() {
 
   const validate = () => {
     const errors: { email?: string; password?: string } = {};
-    if (!/^\S+@\S+\.\S+$/.test(email)) errors.email = "Enter a valid email address";
-    if (!password) errors.password = "Password is required";
+    if (!/^\S+@\S+\.\S+$/.test(email)) errors.email = t("auth.errEmail");
+    if (!password) errors.password = t("auth.errPasswordRequired");
     setFieldErrors(errors);
     return Object.keys(errors).length === 0;
   };
@@ -35,7 +37,7 @@ export function LoginForm() {
       await login(email, password);
       router.push("/dashboard");
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Login failed");
+      setError(err instanceof Error ? err.message : t("auth.loginFailed"));
       setLoading(false);
     }
   };
@@ -51,7 +53,7 @@ export function LoginForm() {
             </div>
           )}
           <div className="space-y-2">
-            <Label htmlFor="email" className="text-slate-300">Email address</Label>
+            <Label htmlFor="email" className="text-slate-300">{t("auth.email")}</Label>
             <Input
               id="email"
               type="email"
@@ -65,7 +67,7 @@ export function LoginForm() {
             {fieldErrors.email && <p className="text-xs text-destructive">{fieldErrors.email}</p>}
           </div>
           <div className="space-y-2">
-            <Label htmlFor="password" className="text-slate-300">Password</Label>
+            <Label htmlFor="password" className="text-slate-300">{t("auth.password")}</Label>
             <Input
               id="password"
               type="password"
@@ -82,11 +84,11 @@ export function LoginForm() {
         <CardFooter className="flex flex-col gap-3 pb-6">
           <Button type="submit" variant="gradient" className="w-full" disabled={loading}>
             {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-            {loading ? "Signing in..." : "Sign in"}
+            {loading ? t("auth.signingIn") : t("auth.signIn")}
           </Button>
           <p className="text-sm text-slate-400 text-center">
-            Don&apos;t have an account?{" "}
-            <a href="/register" className="text-primary hover:text-primary/80">Sign up</a>
+            {t("auth.noAccount")}{" "}
+            <a href="/register" className="text-primary hover:text-primary/80">{t("auth.signUp")}</a>
           </p>
         </CardFooter>
       </form>

@@ -1,8 +1,9 @@
 import type { Metadata } from "next";
 import { LoginForm } from "@/components/auth/login-form";
+import { AuthHeading } from "@/components/auth/auth-heading";
 import { AuthMotionWrapper } from "@/components/auth/auth-motion-wrapper";
 
-export const metadata: Metadata = { title: "Sign In | Prospex" };
+export const metadata: Metadata = { title: "Entrar | Prospector" };
 
 export default function LoginPage() {
   return (
@@ -16,10 +17,9 @@ export default function LoginPage() {
             <div className="w-8 h-8 bg-gradient-brand rounded-lg flex items-center justify-center shadow-glow">
               <span className="text-white font-bold text-sm">P</span>
             </div>
-            <span className="text-white font-semibold text-xl">Prospex</span>
+            <span className="text-white font-semibold text-xl">Prospector</span>
           </div>
-          <h1 className="text-2xl font-bold text-white">Welcome back</h1>
-          <p className="text-slate-400 mt-1">Sign in to your workspace</p>
+          <AuthHeading kind="login" />
         </div>
         <LoginForm />
       </AuthMotionWrapper>

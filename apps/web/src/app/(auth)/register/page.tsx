@@ -1,9 +1,10 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { RegisterForm } from "@/components/auth/register-form";
+import { AuthFooterLink, AuthHeading } from "@/components/auth/auth-heading";
 import { AuthMotionWrapper } from "@/components/auth/auth-motion-wrapper";
 
-export const metadata: Metadata = { title: "Create Account | Prospex" };
+export const metadata: Metadata = { title: "Criar conta | Prospector" };
 
 export default function RegisterPage() {
   return (
@@ -17,16 +18,12 @@ export default function RegisterPage() {
             <div className="w-8 h-8 bg-gradient-brand rounded-lg flex items-center justify-center shadow-glow">
               <span className="text-white font-bold text-sm">P</span>
             </div>
-            <span className="text-white font-semibold text-xl">Prospex</span>
+            <span className="text-white font-semibold text-xl">Prospector</span>
           </Link>
-          <h1 className="text-2xl font-bold text-white">Create your account</h1>
-          <p className="text-slate-400 mt-1 text-sm">Start finding leads with AI — free forever</p>
+          <AuthHeading kind="register" />
         </div>
         <RegisterForm />
-        <p className="text-center text-sm text-slate-500 mt-4">
-          Already have an account?{" "}
-          <Link href="/login" className="text-primary hover:text-primary/80 font-medium">Sign in</Link>
-        </p>
+        <AuthFooterLink />
       </AuthMotionWrapper>
     </div>
   );

@@ -2,12 +2,11 @@
 
 import Link from "next/link";
 import { motion } from "framer-motion";
-import { useRouter, usePathname } from "next/navigation";
+import { usePathname } from "next/navigation";
 import {
-  LayoutDashboard, Megaphone, Users, BarChart3, Settings, Zap, ChevronDown, Building2, LogOut,
+  LayoutDashboard, Megaphone, Users, Kanban, BarChart3, Settings, Zap, ChevronDown, Building2, LogOut, Languages,
 } from "lucide-react";
 import { cn, getInitials } from "@/lib/utils";
-import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import {
   DropdownMenu,
@@ -17,27 +16,31 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { useAuth } from "@/hooks/use-auth";
+import { useI18n, type Locale } from "@/lib/i18n";
+import type { MessageKey } from "@/locales/pt-BR";
 
-const navItems = [
-  { title: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
-  { title: "Campaigns", href: "/campaigns", icon: Megaphone, badge: "New" },
-  { title: "Leads", href: "/leads", icon: Users },
-  { title: "Analytics", href: "/analytics", icon: BarChart3 },
+const navItems: Array<{ title: MessageKey; href: string; icon: typeof Users }> = [
+  { title: "nav.dashboard", href: "/dashboard", icon: LayoutDashboard },
+  { title: "nav.campaigns", href: "/campaigns", icon: Megaphone },
+  { title: "nav.leads", href: "/leads", icon: Users },
+  { title: "nav.crm", href: "/crm", icon: Kanban },
+  { title: "nav.analytics", href: "/analytics", icon: BarChart3 },
 ];
 
-const bottomItems = [
-  { title: "Integrations", href: "/integrations", icon: Zap },
-  { title: "Settings", href: "/settings", icon: Settings },
+const bottomItems: Array<{ title: MessageKey; href: string; icon: typeof Users }> = [
+  { title: "nav.integrations", href: "/integrations", icon: Zap },
+  { title: "nav.settings", href: "/settings", icon: Settings },
 ];
+
+const LANG_LABEL: Record<Locale, string> = { "pt-BR": "Português (BR)", en: "English" };
 
 export function SidebarContent() {
   const pathname = usePathname();
-  const router = useRouter();
   const { user, workspace, logout } = useAuth();
+  const { t, locale, setLocale } = useI18n();
 
   const handleLogout = () => {
-    logout();
-    router.push("/login");
+    void logout();
   };
 
   return (
@@ -46,10 +49,7 @@ export function SidebarContent() {
         <div className="w-7 h-7 bg-gradient-brand rounded-lg flex items-center justify-center flex-shrink-0 shadow-glow">
           <span className="text-white font-bold text-xs">P</span>
         </div>
-        <span className="text-sidebar-foreground font-semibold">Prospex</span>
-        <Badge className="ml-auto text-[10px] py-0 px-1.5 bg-accent/20 text-accent border-0">
-          Beta
-        </Badge>
+        <span className="text-sidebar-foreground font-semibold">{t("app.name")}</span>
       </div>
 
       <div className="px-3 py-2 border-b border-sidebar-border">
@@ -58,7 +58,7 @@ export function SidebarContent() {
             <Building2 className="w-3 h-3 text-white" />
           </div>
           <span className="flex-1 text-left font-medium truncate">
-            {workspace?.name ?? "My Workspace"}
+            {workspace?.name ?? t("nav.workspace")}
           </span>
           <ChevronDown className="w-3.5 h-3.5 text-sidebar-foreground/50 flex-shrink-0" />
         </button>
@@ -86,12 +86,7 @@ export function SidebarContent() {
                 />
               )}
               <item.icon className="w-4 h-4 flex-shrink-0 relative z-10" />
-              <span className="flex-1 relative z-10">{item.title}</span>
-              {"badge" in item && item.badge && (
-                <Badge className="relative z-10 bg-accent/20 text-accent border-0 text-[10px] py-0 px-1.5">
-                  {item.badge}
-                </Badge>
-              )}
+              <span className="flex-1 relative z-10">{t(item.title)}</span>
             </Link>
           );
         })}
@@ -114,7 +109,7 @@ export function SidebarContent() {
               )}
             >
               <item.icon className="w-4 h-4 flex-shrink-0" />
-              {item.title}
+              {t(item.title)}
             </Link>
           );
         })}
@@ -126,26 +121,32 @@ export function SidebarContent() {
             <button className="w-full flex items-center gap-2.5 px-2.5 py-2 rounded-md hover:bg-sidebar-accent transition-colors">
               <div className="w-7 h-7 bg-gradient-brand rounded-full flex items-center justify-center flex-shrink-0">
                 <span className="text-white text-xs font-semibold">
-                  {user ? getInitials(user.name) : "A"}
+                  {user ? getInitials(user.name) : "?"}
                 </span>
               </div>
               <div className="flex-1 text-left min-w-0">
                 <p className="text-sidebar-foreground text-xs font-medium truncate">
-                  {user?.name ?? "Admin"}
+                  {user?.name ?? ""}
                 </p>
                 <p className="text-sidebar-foreground/50 text-[11px] truncate">
-                  {user?.email ?? "admin@prospex.io"}
+                  {user?.email ?? ""}
                 </p>
               </div>
             </button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" side="top" className="w-56">
             <DropdownMenuItem asChild>
-              <Link href="/settings">Account settings</Link>
+              <Link href="/settings">{t("nav.accountSettings")}</Link>
             </DropdownMenuItem>
             <DropdownMenuSeparator />
+            {(Object.keys(LANG_LABEL) as Locale[]).map((l) => (
+              <DropdownMenuItem key={l} onClick={() => setLocale(l)} aria-current={locale === l} data-testid={`lang-${l}`}>
+                <Languages className="w-3.5 h-3.5 mr-1" /> {LANG_LABEL[l]} {locale === l && "✓"}
+              </DropdownMenuItem>
+            ))}
+            <DropdownMenuSeparator />
             <DropdownMenuItem onClick={handleLogout} className="text-destructive focus:text-destructive">
-              <LogOut className="w-3.5 h-3.5 mr-1" /> Sign out
+              <LogOut className="w-3.5 h-3.5 mr-1" /> {t("nav.signOut")}
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>

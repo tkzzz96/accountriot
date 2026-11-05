@@ -1,4 +1,4 @@
-FROM node:22-alpine AS base
+FROM node:26-alpine AS base
 RUN npm install -g pnpm@9.14.4
 
 FROM base AS deps
@@ -19,7 +19,7 @@ RUN pnpm --filter @prospex/database exec prisma generate
 RUN pnpm --filter @prospex/api build
 
 # Playwright needs system deps for Chromium
-FROM node:22-bookworm-slim AS runner
+FROM node:25-bookworm-slim AS runner
 WORKDIR /app
 RUN npm install -g pnpm@9.14.4
 

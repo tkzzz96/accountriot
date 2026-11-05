@@ -84,18 +84,18 @@ export class AuthService {
     };
   }
 
-  async me(userId: string) {
-    const user = await this.prisma.user.findUnique({
-      where: { id: userId },
-      include: { memberships: { include: { workspace: true }, take: 1 } },
+  /** Session info for the workspace carried by the session (not "the first membership"), including the caller's role. */
+  async me(userId: string, workspaceId: string) {
+    const member = await this.prisma.workspaceMember.findUnique({
+      where: { workspaceId_userId: { workspaceId, userId } },
+      include: { user: true, workspace: true },
     });
-    if (!user) throw new UnauthorizedException();
-    const workspace = user.memberships[0]?.workspace;
+    if (!member) throw new UnauthorizedException();
+    const { user, workspace } = member;
     return {
       user: { id: user.id, name: user.name, email: user.email },
-      workspace: workspace
-        ? { id: workspace.id, name: workspace.name, slug: workspace.slug }
-        : null,
+      workspace: { id: workspace.id, name: workspace.name, slug: workspace.slug },
+      role: member.role,
     };
   }
 }

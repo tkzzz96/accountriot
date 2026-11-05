@@ -3,12 +3,15 @@ import { ValidationPipe } from "@nestjs/common";
 import { SwaggerModule, DocumentBuilder } from "@nestjs/swagger";
 import helmet from "helmet";
 import { AppModule } from "./app.module";
+import { requestLogger } from "./common/request-logger";
 import { HttpExceptionFilter } from "./common/filters/http-exception.filter";
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
 
   app.enableShutdownHooks(); // close BullMQ workers, Redis and Prisma cleanly on SIGTERM/SIGINT
+  const logFormat = process.env.LOG_FORMAT === "json" || (!process.env.LOG_FORMAT && process.env.NODE_ENV === "production") ? "json" : "text";
+  app.use(requestLogger(logFormat));
   app.use(helmet());
   app.setGlobalPrefix("api");
   app.useGlobalPipes(new ValidationPipe({ transform: true, whitelist: true }));
@@ -17,6 +20,7 @@ async function bootstrap() {
   // Allow the configured origin plus loopback hosts on any port, so http://127.0.0.1:3000 or a changed WEB_PORT still work locally.
   const loopback = /^https?:\/\/(localhost|127\.0\.0\.1|\[::1\])(:\d+)?$/;
   app.enableCors({
+    credentials: true, // httpOnly session cookie + CSRF header
     origin: (origin, cb) => cb(null, !origin || origin === configuredOrigin || loopback.test(origin)),
   });
 

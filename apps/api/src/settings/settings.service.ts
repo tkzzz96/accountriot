@@ -6,6 +6,14 @@ import { encryptSecret, decryptSecret } from "./encryption.util";
 
 const DEFAULT_WORKSPACE_ID = "default-workspace";
 const SECRET_CONFIG_KEYS = ["apiKey"];
+const MASK = "••••";
+
+export const isMasked = (v: string | undefined): boolean => typeof v === "string" && v.startsWith(MASK);
+export function maskSecrets(config: Record<string, string>): Record<string, string> {
+  const out = { ...config };
+  for (const k of SECRET_CONFIG_KEYS) if (out[k]) out[k] = `${MASK}${out[k].slice(-4)}`;
+  return out;
+}
 
 @Injectable()
 export class SettingsService {
@@ -34,12 +42,21 @@ export class SettingsService {
     return result;
   }
 
+  /** Integrations for the UI: secrets are masked ("••••abcd"), never sent back in clear text. */
   async getIntegrations(workspaceId = DEFAULT_WORKSPACE_ID) {
     const integrations = await this.prisma.integration.findMany({ where: { workspaceId } });
     return integrations.map((integration) => ({
       ...integration,
-      config: this.decryptConfig(integration.config as Record<string, string>),
+      config: maskSecrets(this.decryptConfig(integration.config as Record<string, string>)),
     }));
+  }
+
+  /** The workspace's own LLM settings (clear text, server-side use only), or null when none are saved/enabled. */
+  async getLlmConfig(workspaceId: string): Promise<{ apiKey: string; model?: string; baseURL?: string } | null> {
+    const row = await this.prisma.integration.findFirst({ where: { workspaceId, type: "openai", enabled: true } });
+    if (!row) return null;
+    const c = this.decryptConfig(row.config as Record<string, string>);
+    return c.apiKey ? { apiKey: c.apiKey, model: c.model || undefined, baseURL: c.baseURL || undefined } : null;
   }
 
   async upsertIntegration(
@@ -48,8 +65,14 @@ export class SettingsService {
     config: Record<string, string>,
     workspaceId = DEFAULT_WORKSPACE_ID,
   ) {
-    const encryptedConfig = this.encryptConfig(config);
     const existing = await this.prisma.integration.findFirst({ where: { workspaceId, type } });
+    // The UI shows masked secrets: a masked value coming back means "keep the stored one".
+    const incoming = { ...config };
+    if (existing) {
+      const stored = this.decryptConfig(existing.config as Record<string, string>);
+      for (const k of SECRET_CONFIG_KEYS) if (isMasked(incoming[k])) incoming[k] = stored[k] ?? "";
+    }
+    const encryptedConfig = this.encryptConfig(incoming);
     if (existing) {
       return this.prisma.integration.update({
         where: { id: existing.id },

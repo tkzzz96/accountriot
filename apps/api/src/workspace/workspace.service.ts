@@ -89,6 +89,20 @@ export class WorkspaceService {
     return this.prisma.workspaceMember.delete({ where: { id: memberId } });
   }
 
+  /** Permanently erases the workspace and everything in it (leads, campaigns, members' access, own references). Owner only. */
+  async deleteWorkspace(workspaceId: string, requesterId: string, confirmSlug: string) {
+    const ws = await this.prisma.workspace.findUnique({ where: { id: workspaceId } });
+    if (!ws) throw new NotFoundException("Workspace not found");
+    const me = await this.prisma.workspaceMember.findUnique({ where: { workspaceId_userId: { workspaceId, userId: requesterId } } });
+    if (me?.role !== "owner") throw new ForbiddenException("Only the workspace owner can delete the workspace");
+    if (confirmSlug !== ws.slug) throw new ForbiddenException("Confirmation does not match the workspace slug");
+    await this.prisma.$transaction([
+      this.prisma.curatedReference.deleteMany({ where: { workspaceId } }), // no FK: cleaned explicitly
+      this.prisma.workspace.delete({ where: { id: workspaceId } }), // cascades to members, campaigns, leads, keys, integrations
+    ]);
+    return { deleted: true };
+  }
+
   /** Admins manage regular members; only the owner may touch another admin. */
   private async requireOwnerForAdminTarget(workspaceId: string, requesterId: string, targetRole: string) {
     if (targetRole !== "admin") return;

@@ -38,9 +38,9 @@ export async function verifyEmail(
 }
 
 /** Talks SMTP up to RCPT TO, never sends DATA. Needs outbound port 25. */
-export function smtpRcptProbe(host: string, email: string, timeoutMs = 8000): Promise<EmailVerdict> {
+export function smtpRcptProbe(host: string, email: string, timeoutMs = 8000, port = 25): Promise<EmailVerdict> {
   return new Promise((resolve) => {
-    const sock = net.connect(25, host);
+    const sock = net.connect(port, host);
     const steps = [`HELO prospector.local`, `MAIL FROM:<verify@prospector.local>`, `RCPT TO:<${email}>`, `QUIT`];
     let step = -1;
     let verdict: EmailVerdict = "unknown";

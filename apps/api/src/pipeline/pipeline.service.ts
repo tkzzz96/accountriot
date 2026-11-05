@@ -18,6 +18,9 @@ import { leadJobOpts, LeadJobData } from "./pipeline.constants";
 import { ReferencesService } from "../references/references.service";
 import { OutreachService } from "../outreach/outreach.service";
 import { Channel, Lang } from "../outreach/outreach.logic";
+import { ConfigService } from "@nestjs/config";
+import { SettingsService } from "../settings/settings.service";
+import { startOfUtcDay, withinBudget } from "../outreach/llm-budget";
 
 type Json = Record<string, unknown>;
 
@@ -46,6 +49,8 @@ export class PipelineService {
     private enrichment: EnrichmentService,
     private outreach: OutreachService,
     private references: ReferencesService,
+    private config: ConfigService,
+    private settings: SettingsService,
     @InjectQueue("pipeline") private queue: Queue<LeadJobData>,
   ) {}
 
@@ -204,6 +209,17 @@ export class PipelineService {
     const ch: Channel = channel ?? (filter.channel === "email" ? "email" : "whatsapp");
     const lg: Lang = lang ?? (filter.language === "en" ? "en" : "pt-BR");
     const rating = lead.rating ? parseFloat(lead.rating) : null;
+    // Workspace key (Settings → Integrations) wins over the server .env key; a daily cap bounds LLM spend.
+    const llm = await this.settings.getLlmConfig(lead.workspaceId);
+    const limit = Number(this.config.get("LLM_DAILY_DRAFT_LIMIT") ?? 300);
+    let allowLlm = false;
+    if (this.outreach.hasLlm({ llm })) {
+      const used = await this.prisma.leadActivity.count({
+        where: { type: "llm_draft", lead: { workspaceId: lead.workspaceId }, createdAt: { gte: startOfUtcDay() } },
+      });
+      allowLlm = withinBudget(used, limit);
+      if (!allowLlm) this.logger.warn(`LLM daily draft limit (${limit}) reached for workspace ${lead.workspaceId}; using templates`);
+    }
     const draft = await this.outreach.draft(
       {
         name: lead.name,
@@ -222,7 +238,11 @@ export class PipelineService {
       },
       ch,
       lg,
+      { allowLlm, llm },
     );
+    if (draft.generator === "llm") {
+      await this.prisma.leadActivity.create({ data: { leadId, type: "llm_draft", note: `LLM draft (${ch}/${lg})` } });
+    }
     // Keep one draft per channel so regenerating email does not erase the WhatsApp draft.
     const prev = (lead.marketingContent ?? {}) as { drafts?: Record<string, unknown> };
     const drafts = { ...(prev.drafts ?? {}), [ch]: draft };

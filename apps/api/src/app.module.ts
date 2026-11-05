@@ -8,6 +8,7 @@ import { PrismaModule } from "./prisma/prisma.module";
 import { CampaignsModule } from "./campaigns/campaigns.module";
 import { LeadsModule } from "./leads/leads.module";
 import { AnalyticsModule } from "./analytics/analytics.module";
+import { OpsModule } from "./ops/ops.module";
 import { ScraperModule } from "./scraper/scraper.module";
 import { SettingsModule } from "./settings/settings.module";
 import { ExportModule } from "./export/export.module";
@@ -30,12 +31,20 @@ import { WorkspaceModule } from "./workspace/workspace.module";
         OPENAI_BASE_URL: Joi.string().allow("").default(""),
         NEXT_PUBLIC_APP_URL: Joi.string().default("http://localhost:3000"),
         DISCOVERY_DRIVER: Joi.string().valid("gosom", "places", "playwright", "mock").default("gosom"),
+        GOSOM_POLL_MS: Joi.number().min(10).default(4000),
+        PINTEREST_ACCESS_TOKEN: Joi.string().allow("").default(""),
         GOSOM_URL: Joi.string().uri().default("http://localhost:8080"),
         PLACES_API_KEY: Joi.string().allow("").default(""),
         EMAIL_SMTP_VERIFY: Joi.string().valid("true", "false").default("false"),
         REFERENCE_TTL_DAYS: Joi.number().min(1).default(30),
         REFERENCE_PRUNE_SEED: Joi.string().valid("true", "false").default("false"),
         ENABLE_API_DOCS: Joi.string().valid("true", "false").default("false"),
+        JWT_EXPIRES_IN: Joi.string().pattern(/^\d+[smhd]?$/).default("7d"),
+        COOKIE_SECURE: Joi.string().valid("true", "false").optional(),
+        LLM_DAILY_DRAFT_LIMIT: Joi.number().min(0).default(300),
+        LEAD_WEBHOOK_URL: Joi.string().uri().allow("").default(""),
+        LEAD_WEBHOOK_SECRET: Joi.string().allow("").default(""),
+        LOG_FORMAT: Joi.string().valid("json", "text").optional(),
         THROTTLE_TTL_MS: Joi.number().default(60000),
         THROTTLE_LIMIT: Joi.number().default(60),
         AUTH_THROTTLE_LIMIT: Joi.number().default(10),
@@ -53,6 +62,7 @@ import { WorkspaceModule } from "./workspace/workspace.module";
     LeadsModule,
     AnalyticsModule,
     ScraperModule,
+    OpsModule,
     SettingsModule,
     ExportModule,
     AuthModule,

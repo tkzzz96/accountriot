@@ -51,7 +51,7 @@ export class GosomDriver implements DiscoveryDriver {
       const deadline = Date.now() + 10 * 60 * 1000;
       for (;;) {
         if (Date.now() > deadline) throw new Error(`gosom job ${id} timed out`);
-        await sleep(4000);
+        await sleep(Number(this.config.get("GOSOM_POLL_MS")) || 4000);
         const res = await fetch(`${this.baseUrl}/api/v1/jobs/${id}`, { signal: AbortSignal.timeout(HTTP_TIMEOUT_MS) });
         if (!res.ok) throw new Error(`gosom status failed: HTTP ${res.status}`);
         const job = (await res.json()) as Record<string, string>;

@@ -16,3 +16,8 @@ export class UpdateWorkspaceDto {
   @IsOptional() @IsString() @MinLength(1) @MaxLength(80) name?: string;
   @IsOptional() @Matches(/^[a-z0-9]+(?:-[a-z0-9]+)*$/) @MaxLength(60) slug?: string;
 }
+
+export class DeleteWorkspaceDto {
+  /** Must equal the workspace slug: guards against accidental/automated deletion. */
+  @IsString() @MaxLength(120) confirmSlug: string;
+}

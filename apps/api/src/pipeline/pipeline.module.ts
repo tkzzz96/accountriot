@@ -6,10 +6,11 @@ import { CampaignsModule } from "../campaigns/campaigns.module";
 import { DiscoveryModule } from "../discovery/discovery.module";
 import { ReferencesModule } from "../references/references.module";
 import { OutreachModule } from "../outreach/outreach.module";
+import { SettingsModule } from "../settings/settings.module";
 import { EnrichmentModule } from "../enrichment/enrichment.module";
 
 @Module({
-  imports: [BullModule.registerQueue({ name: "pipeline" }), CampaignsModule, DiscoveryModule, EnrichmentModule, OutreachModule, ReferencesModule],
+  imports: [BullModule.registerQueue({ name: "pipeline" }), CampaignsModule, DiscoveryModule, EnrichmentModule, OutreachModule, ReferencesModule, SettingsModule],
   providers: [PipelineService, PipelineProcessor],
   exports: [PipelineService, BullModule],
 })

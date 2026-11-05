@@ -2,6 +2,7 @@ import { Throttle } from "@nestjs/throttler";
 import { Controller, Get, Patch, Post, Delete, Param, Body, Query, UseGuards, HttpCode } from "@nestjs/common";
 import { ApiTags, ApiOperation, ApiQuery, ApiBearerAuth } from "@nestjs/swagger";
 import { LeadsService } from "./leads.service";
+import { BulkLeadsDto } from "./dto/bulk.dto";
 import { UpdateCrmDto } from "./dto/update-crm.dto";
 import { IsIn, IsOptional } from "class-validator";
 import { PipelineService } from "../pipeline/pipeline.service";
@@ -56,6 +57,14 @@ export class LeadsController {
     });
   }
 
+  @Throttle({ default: { limit: 20, ttl: 60_000 } })
+  @Post("bulk")
+  @HttpCode(200)
+  @ApiOperation({ summary: "Bulk CRM update or delete (max 200 ids)" })
+  bulk(@Body() dto: BulkLeadsDto, @WorkspaceId() workspaceId: string) {
+    return this.leadsService.bulk(dto, workspaceId);
+  }
+
   @Get(":id")
   @ApiOperation({ summary: "Get lead by ID" })
   findOne(@Param("id") id: string, @WorkspaceId() workspaceId: string) {
@@ -80,6 +89,14 @@ export class LeadsController {
   @ApiOperation({ summary: "Regenerate the message draft (never sends)" })
   regenerateDraft(@Param("id") id: string, @Body() dto: RegenerateDraftDto, @WorkspaceId() workspaceId: string) {
     return this.pipeline.draftForLead(id, workspaceId, dto.channel, dto.lang);
+  }
+
+  @Throttle({ default: { limit: 20, ttl: 60_000 } })
+  @Post(":id/export/webhook")
+  @HttpCode(200)
+  @ApiOperation({ summary: "Send the lead (with its draft) to the configured CRM webhook" })
+  exportWebhook(@Param("id") id: string, @WorkspaceId() workspaceId: string) {
+    return this.leadsService.exportToWebhook(id, workspaceId);
   }
 
   @Delete(":id")

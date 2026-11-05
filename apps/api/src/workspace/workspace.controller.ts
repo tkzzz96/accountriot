@@ -1,4 +1,4 @@
-import { InviteMemberDto, UpdateRoleDto, UpdateWorkspaceDto } from "./dto";
+import { DeleteWorkspaceDto, InviteMemberDto, UpdateRoleDto, UpdateWorkspaceDto } from "./dto";
 import { Controller, Get, Post, Patch, Delete, Body, Param, UseGuards, HttpCode, HttpStatus } from "@nestjs/common";
 import { ApiTags, ApiOperation, ApiBearerAuth } from "@nestjs/swagger";
 import { WorkspaceService } from "./workspace.service";
@@ -65,5 +65,12 @@ export class WorkspaceController {
     @Param("id") memberId: string,
   ) {
     return this.workspaceService.removeMember(workspaceId, memberId, requesterId);
+  }
+
+  @Delete()
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: "Permanently delete this workspace and all its data (owner only; body: { confirmSlug })" })
+  deleteWorkspace(@WorkspaceId() workspaceId: string, @CurrentUserId() requesterId: string, @Body() body: DeleteWorkspaceDto) {
+    return this.workspaceService.deleteWorkspace(workspaceId, requesterId, body.confirmSlug);
   }
 }

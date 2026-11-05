@@ -1,10 +1,15 @@
-import { Controller, Post, Get, Body, Headers, UnauthorizedException, HttpCode, HttpStatus } from "@nestjs/common";
+import { Controller, Post, Get, Body, HttpCode, HttpStatus, Res, UseGuards } from "@nestjs/common";
 import { ApiTags, ApiOperation, ApiBearerAuth } from "@nestjs/swagger";
 import { Throttle } from "@nestjs/throttler";
-import { JwtService } from "@nestjs/jwt";
+import { ConfigService } from "@nestjs/config";
+import type { Response } from "express";
 import { AuthService } from "./auth.service";
 import { RegisterDto } from "./dto/register.dto";
 import { LoginDto } from "./dto/login.dto";
+import { JwtGuard } from "./jwt.guard";
+import { CurrentUserId } from "./current-user.decorator";
+import { WorkspaceId } from "./current-workspace.decorator";
+import { clearSessionCookies, durationToMs, setSessionCookies } from "./session";
 
 @ApiTags("Auth")
 @Throttle({
@@ -17,41 +22,42 @@ import { LoginDto } from "./dto/login.dto";
 export class AuthController {
   constructor(
     private readonly authService: AuthService,
-    private readonly jwt: JwtService,
+    private readonly config: ConfigService,
   ) {}
 
+  private get ttlMs(): number {
+    return durationToMs(this.config.get<string>("JWT_EXPIRES_IN", "7d"));
+  }
+
   @Post("register")
-  @ApiOperation({ summary: "Register new user + workspace" })
-  register(@Body() dto: RegisterDto) {
-    return this.authService.register(dto);
+  @ApiOperation({ summary: "Register new user + workspace (sets the session cookie)" })
+  async register(@Body() dto: RegisterDto, @Res({ passthrough: true }) res: Response) {
+    const out = await this.authService.register(dto);
+    setSessionCookies(res, out.token, this.ttlMs);
+    return out;
   }
 
   @Post("login")
-  @ApiOperation({ summary: "Login with email + password" })
-  login(@Body() dto: LoginDto) {
-    return this.authService.login(dto);
+  @ApiOperation({ summary: "Login with email + password (sets the session cookie)" })
+  async login(@Body() dto: LoginDto, @Res({ passthrough: true }) res: Response) {
+    const out = await this.authService.login(dto);
+    setSessionCookies(res, out.token, this.ttlMs);
+    return out;
   }
 
   @Get("me")
+  @UseGuards(JwtGuard)
   @ApiBearerAuth()
-  @ApiOperation({ summary: "Get current user info" })
-  async me(@Headers("authorization") auth: string) {
-    if (!auth?.startsWith("Bearer ")) throw new UnauthorizedException();
-    const token = auth.slice(7);
-    try {
-      const payload = this.jwt.verify<{ sub: string }>(token);
-      return this.authService.me(payload.sub);
-    } catch {
-      throw new UnauthorizedException("Invalid or expired token");
-    }
+  @ApiOperation({ summary: "Get current user info (cookie, Bearer or user session)" })
+  me(@CurrentUserId() userId: string, @WorkspaceId() workspaceId: string) {
+    return this.authService.me(userId, workspaceId);
   }
 
   @Post("logout")
   @HttpCode(HttpStatus.NO_CONTENT)
-  @ApiOperation({ summary: "Logout — clears session on client side" })
-  logout() {
-    // JWT is stateless. Client must delete the token from storage.
-    // For server-side session invalidation, implement a token blocklist with Redis.
-    return;
+  @ApiOperation({ summary: "Logout — clears the session cookies" })
+  logout(@Res({ passthrough: true }) res: Response) {
+    // Stateless JWT: the cookie is cleared here. Server-side revocation would need a token blocklist (Redis).
+    clearSessionCookies(res);
   }
 }

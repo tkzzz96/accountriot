@@ -1,4 +1,7 @@
-import { Injectable, NotFoundException } from "@nestjs/common";
+import { BadGatewayException, BadRequestException, Injectable, Logger, NotFoundException, ServiceUnavailableException } from "@nestjs/common";
+import { ConfigService } from "@nestjs/config";
+import { BulkLeadsDto } from "./dto/bulk.dto";
+import { leadWebhookPayload, signBody } from "./webhook";
 import { PrismaService } from "../prisma/prisma.service";
 import { UpdateCrmDto } from "./dto/update-crm.dto";
 
@@ -18,7 +21,56 @@ export interface LeadFilter {
 
 @Injectable()
 export class LeadsService {
-  constructor(private prisma: PrismaService) {}
+  private readonly logger = new Logger(LeadsService.name);
+
+  constructor(private prisma: PrismaService, private config: ConfigService) {}
+
+  /** Applies one action to up to 200 leads of the caller's workspace (ids from other workspaces are ignored). */
+  async bulk(dto: BulkLeadsDto, workspaceId: string): Promise<{ affected: number }> {
+    const owned = await this.prisma.lead.findMany({ where: { id: { in: dto.ids }, workspaceId }, select: { id: true } });
+    const ids = owned.map((l) => l.id);
+    if (ids.length === 0) return { affected: 0 };
+    if (dto.action === "delete") {
+      const res = await this.prisma.lead.deleteMany({ where: { id: { in: ids }, workspaceId } });
+      return { affected: res.count };
+    }
+    if (!dto.crmStatus && dto.crmNotes === undefined) throw new BadRequestException("crmStatus or crmNotes is required for action 'crm'");
+    const now = new Date();
+    const data = {
+      ...(dto.crmStatus && { crmStatus: dto.crmStatus }),
+      ...(dto.crmNotes !== undefined && { crmNotes: dto.crmNotes }),
+      ...(dto.crmStatus === "contacted" && { contactedAt: now }),
+      ...(dto.crmStatus === "replied" && { repliedAt: now }),
+      ...(dto.crmStatus === "won" || dto.crmStatus === "lost" ? { closedAt: now } : {}),
+    };
+    const res = await this.prisma.lead.updateMany({ where: { id: { in: ids }, workspaceId }, data });
+    await this.prisma.leadActivity.createMany({
+      data: ids.map((leadId) => ({ leadId, type: "crm_update", note: `Status changed to ${dto.crmStatus ?? "(notes)"}`, metadata: { bulk: true, crmStatus: dto.crmStatus ?? null } })),
+    });
+    return { affected: res.count };
+  }
+
+  /** POSTs the lead (with its DRAFT, never a sent message) to LEAD_WEBHOOK_URL, signed with LEAD_WEBHOOK_SECRET when set. */
+  async exportToWebhook(id: string, workspaceId: string): Promise<{ delivered: true; status: number }> {
+    const url = this.config.get<string>("LEAD_WEBHOOK_URL");
+    if (!url) throw new ServiceUnavailableException("LEAD_WEBHOOK_URL is not configured");
+    const lead = await this.prisma.lead.findFirst({ where: { id, workspaceId } });
+    if (!lead) throw new NotFoundException(`Lead ${id} not found`);
+    const body = JSON.stringify(leadWebhookPayload(lead));
+    const secret = this.config.get<string>("LEAD_WEBHOOK_SECRET");
+    const headers: Record<string, string> = { "content-type": "application/json", "user-agent": "prospector-webhook/1" };
+    if (secret) headers["x-prospector-signature"] = signBody(body, secret);
+    let res: Response;
+    try {
+      res = await fetch(url, { method: "POST", headers, body, redirect: "manual", signal: AbortSignal.timeout(10_000) });
+    } catch (err) {
+      this.logger.warn(`Lead webhook failed: ${err instanceof Error ? err.message : String(err)}`);
+      throw new BadGatewayException("Webhook endpoint unreachable");
+    }
+    if (!res.ok) throw new BadGatewayException(`Webhook responded ${res.status}`);
+    await this.prisma.leadActivity.create({ data: { leadId: id, type: "webhook_export", note: `Exported to webhook (${res.status})` } });
+    return { delivered: true, status: res.status };
+  }
 
   async findAll(workspaceId = DEFAULT_WORKSPACE_ID, filter: LeadFilter = {}) {
     const { campaignId, q, priority, status, siteStatus, stage, minScore } = filter;
